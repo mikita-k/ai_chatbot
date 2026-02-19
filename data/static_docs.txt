@@ -1,0 +1,18 @@
+General information about the parking lot:
+Our parking lot is open 24/7. We provide secure parking with CCTV and lighting.
+
+Pricing:
+Hourly rate is $2. Daily maximum is $20. Monthly passes are available.
+
+Location:
+The parking is located at 123 Main Street, near the central mall. GPS coordinates: 45.0000, -120.0000.
+
+Booking process:
+To book a space, provide your name, surname, car number, and reservation period. After booking, an administrator will confirm.
+
+Availability:
+Availability updates every 5 minutes. Dynamic availability is stored separately from static info.
+
+Contact:
+Email: admin@parking.example.com
+
