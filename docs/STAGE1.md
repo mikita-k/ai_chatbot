@@ -144,8 +144,9 @@ test_guard_rails_email_redaction PASSED
 test_guard_rails_number_redaction PASSED
 test_documentstore_retrieval PASSED
 test_simple_rag_answer PASSED
+test_dynamic_data_included PASSED
 
-===================== 4 passed =====================
+===================== 5 passed =====================
 ```
 
 ## What's Included

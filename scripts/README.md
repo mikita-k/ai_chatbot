@@ -35,10 +35,10 @@ python debug_retrieval.py
 Query: how much should I pay for 2 hours?
 
 Found documents:
-Document 1 (score=0.5123):
+Document 1 (similarity=0.5123):
 Pricing: Hourly rate is $2. Daily maximum is $20...
 
-Document 0 (score=0.0234):
+Document 0 (similarity=0.0234):
 Working Hours: Monday to Friday 7am-7pm...
 ```
 

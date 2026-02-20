@@ -21,7 +21,7 @@ Each stage **builds upon and extends the previous one**.
 ### What's Implemented
 
 - RAG (Retrieval-Augmented Generation) architecture
-- TF-IDF document retrieval with keyword fallback
+- FAISS vector database with sentence-transformers embeddings
 - OpenAI LLM integration (optional)
 - Guard rails (sensitive data redaction)
 - Interactive chat and single-query modes
@@ -70,7 +70,7 @@ Query: how much should I pay for 2 hours?
 
 Pricing:
 Hourly rate is $2. Daily maximum is $20. Monthly passes are available.
-[score=0.500]
+[similarity=0.500]
 
 (Retrieval latency: 0.001s, top=3)
 ```
@@ -94,14 +94,30 @@ pytest tests/test_stage1.py -v
 pytest -v
 ```
 
+### Debug Scripts
+
+Located in `scripts/` directory (must be run from project root):
+
+```powershell
+# Show all loaded documents and their indices
+python scripts/check_indices.py
+
+# Test retrieval with sample query
+python scripts/debug_retrieval.py
+```
+
+For more information, see [scripts/README.md](../scripts/README.md).
+
 ### Key Features
 
-- ✅ RAG architecture with TF-IDF retrieval
-- ✅ Fallback keyword-based search when TF-IDF has low scores
+- ✅ RAG architecture with **FAISS vector database** (sentence-transformers embeddings)
+- ✅ **Dual data model**: 
+  - Static data in FAISS vector DB (general info, location, pricing, booking process)
+  - Dynamic data in SQLite DB (real-time availability, pricing, hours)
 - ✅ Guard rails for email and number redaction
-- ✅ OpenAI integration (gpt-3.5-turbo, gpt-4o-mini)
+- ✅ OpenAI integration (optional, with fallback to local retrieval)
 - ✅ Interactive CLI chat interface
-- ✅ Performance monitoring (latency tracking)
+- ✅ Performance monitoring (retrieval latency tracking)
 - ✅ Comprehensive pytest tests (3+ test cases)
 
 ### File Structure
@@ -116,8 +132,15 @@ src/stage1/
 
 ```
 data/
-├── static_docs.txt         # Parking information
-└── parking_spots.json      # Parking spots database
+├── static_docs.txt         # Static parking information
+└── dynamic/
+    ├── __init__.py         # Dynamic data providers
+    ├── db.py              # Parking database (SQLite)
+    └── parking.db         # SQLite database with parking availability
+
+faiss_db/
+├── index.faiss            # FAISS vector index
+└── docs.pkl               # Embeddings and documents
 ```
 
 ---
@@ -307,18 +330,19 @@ pytest -v
 
 ## Dependencies
 
-Current:
+### Stage 1 (Current)
 ```
-scikit-learn>=1.3.0
-pytest>=7.0
-openai>=1.0.0
-python-dotenv>=1.0.0
+faiss-cpu>=1.7.0              # Vector database
+sentence-transformers>=2.2.0  # Embedding model
+pytest>=7.0                   # Testing
+openai>=1.0.0                 # OpenAI API (optional)
+python-dotenv>=1.0.0          # Environment variables
 ```
 
-For Stage 2+:
+### For Stage 2+
 ```
 langchain>=0.1.0
-langraph>=0.0.1
+langgraph>=0.0.1
 fastapi>=0.100.0
 pydantic>=2.0.0
 ```

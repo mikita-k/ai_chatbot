@@ -33,43 +33,6 @@ If the code is poor quality, or too basic to be practical, and includes critical
 
 
 
-
-# Stage 1: Creation of a RAG System and Chatbot
-What should be done
-*
-
-1. Implement the basic architecture of the chatbot using Retrieval-Augmented Generation to interact with users.
-
-2. Integrate a vector database for storing information.
-
-(Optional) Solution can be improved by splitting source data into 2 data types: dynamic data (e.g. space availability, working hours, prices) and  static data (e.g. general information, parking details, location, booking process).  Store static data in vector database but dynamic data in SQL database.
-3. Implement interactive features:
-
-Provide information to users.
-Collect user inputs for reservations.
-4. Implement guard rails mechanism. Add a filtering to prevent exposure of sensitive data (e.g., using pre-trained NLP models for text analysis).
-
-5. Perform evaluation of the RAG system:
-
-Performance testing.
-Response accuracy measurement (e.g., using metrics like Recall@K and Precision).
-Outcome:
-
-Working chatbot capable of providing basic information and interacting with users.
-Data protection functionality.
-Evaluation report on system performance.
-
-
-Providing the result: 
-please provide a link to your GitHub or EPAM GitLab repository in the answer field
-you can earn extra points if you provide the following artifacts: 
-a PowerPoint presentation explaining how the solution works, including relevant screenshots
-a README file with clear project documentation (setup, usage, structure, etc.)
-Automated test cases are implemented using pytest or unittest  (at least 2 tests per module)
-CI/CD automation and/or Infrastructure as Code (e.g., Terraform)
-
-if the code is poor quality, or too basic to be practical, and includes critical errors, the grade may be reduced
-
 # Stage 2: Implementation of Human-in-the-Loop Agent
 What should be done
 *
