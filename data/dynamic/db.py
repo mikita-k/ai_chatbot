@@ -64,15 +64,15 @@ def init_db():
         ]
     )
 
-    # Insert sample schedule
+    # Insert sample schedule (limited hours: weekdays 07:00-22:00, weekends 08:00-23:00)
     schedule = [
         ("Monday", "07:00", "22:00"),
         ("Tuesday", "07:00", "22:00"),
         ("Wednesday", "07:00", "22:00"),
         ("Thursday", "07:00", "22:00"),
-        ("Friday", "07:00", "23:00"),
+        ("Friday", "07:00", "22:00"),
         ("Saturday", "08:00", "23:00"),
-        ("Sunday", "09:00", "21:00"),
+        ("Sunday", "08:00", "23:00"),
     ]
 
     cursor.executemany(

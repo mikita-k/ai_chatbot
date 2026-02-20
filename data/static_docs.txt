@@ -1,5 +1,8 @@
 General information about the parking lot:
-Our parking lot is open 24/7. We provide secure parking with CCTV and lighting.
+Our parking lot is open with the following schedule:
+- Weekdays (Monday-Friday): 07:00 - 22:00
+- Weekends (Saturday-Sunday): 08:00 - 23:00
+We provide secure parking with CCTV and lighting.
 
 Pricing:
 Hourly rate is $2. Daily maximum is $20. Monthly passes are available.
