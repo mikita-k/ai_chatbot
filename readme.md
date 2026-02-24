@@ -2,9 +2,87 @@
 
 A multi-stage project implementing a complete intelligent chatbot system for parking space reservations using RAG (Retrieval-Augmented Generation), human-in-the-loop approval, and persistent storage.
 
+## 🎯 Project Status
+
+| Stage | Status | Features |
+|-------|--------|----------|
+| **Stage 1** | ✅ COMPLETE | RAG Chatbot, FAISS, Dynamic Data, LLM Integration, 5 Tests |
+| **Stage 2** | ✅ COMPLETE | Admin Approval, Telegram Integration, 16 Tests |
+| **Stage 3** | 🔄 IN PROGRESS | MCP Server, File Storage |
+| **Stage 4** | ⏳ TODO | LangGraph Orchestration |
+
 ## Quick Start
 
 See [IMPLEMENTATION GUIDE](docs/IMPLEMENTATION.md) for detailed setup and usage instructions.
+
+### Stage 1: RAG Chatbot with FAISS
+
+**Basic usage (without LLM - uses pattern matching):**
+```powershell
+python -m src.stage1.rag_chatbot chat
+```
+Interactive chatbot that answers parking-related questions using RAG with FAISS vector database and sentence-transformers embeddings.
+
+**With OpenAI LLM enabled:**
+```powershell
+python -m src.stage1.rag_chatbot chat --use-llm
+# Or set USE_LLM=true in .env + OPENAI_API_KEY
+```
+
+**Check loaded documents:**
+```powershell
+python scripts/stage1/check_indices.py
+```
+Display all documents loaded in the DocumentStore.
+
+**Debug retrieval:**
+```powershell
+python scripts/stage1/debug_retrieval.py
+```
+Test retrieval functionality with sample queries and similarity scores.
+
+**Features:**
+- Vector database (FAISS) with sentence-transformers embeddings
+- Fast document retrieval with configurable top-k results
+- Optional OpenAI LLM for natural language generation
+- Dynamic document updates support
+- Low latency (~10ms per query)
+
+For detailed documentation, see [docs/STAGE1.md](docs/STAGE1.md)
+
+### Stage 2: Admin Approval with Telegram Integration
+
+**Default (Simulated Admin - No Setup Required):**
+```powershell
+python scripts/stage2/run_stage2.py
+```
+Interactive chatbot with auto-approval after 1 second. No external dependencies needed.
+
+**Setup Telegram (Optional - For Real Admin Notifications):**
+```powershell
+# 1. Create bot via @BotFather on Telegram, get TOKEN and CHAT_ID
+# 2. Create .env file with:
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_ADMIN_CHAT_ID=your_chat_id
+USE_LLM=true  # Optional: enable OpenAI LLM
+```
+
+**Run with Telegram (2 terminals):**
+```powershell
+# Terminal 1: Chatbot
+python scripts/stage2/run_stage2.py
+
+# Terminal 2: Admin bot (waits for Telegram messages)
+python scripts/stage2/run_telegram_bot.py
+```
+
+**With OpenAI LLM enabled:**
+```powershell
+python scripts/stage2/run_stage2.py --use-llm
+# Or set USE_LLM=true in .env + OPENAI_API_KEY
+```
+
+For detailed documentation, see [docs/STAGE2.md](docs/STAGE2.md) and [scripts/README.md](scripts/README.md)
 
 ---
 
@@ -30,36 +108,6 @@ a README file with clear project documentation (setup, usage, structure, etc.)
 Automated test cases are implemented using pytest or unittest  (at least 2 tests per module)
 CI/CD automation and/or Infrastructure as Code (e.g., Terraform)
 If the code is poor quality, or too basic to be practical, and includes critical errors, the grade may be reduced
-
-
-
-# Stage 2: Implementation of Human-in-the-Loop Agent
-What should be done
-*
-Tasks:
-
-Create the second agent using LangChain to interact with the administrator.
-Chat bot should be able to send a reservation request to administrator and get confirm/refuse response from him.  (e.g. via email server, messenger, rest api ).
-Organize the integration with the first agent so that the reservation request is escalated to the human administrator after collecting details from the user.
-Key Features:
-
-Generating and sending reservation confirmation requests to the administrator.
-Receiving responses from the administrator.
-Maintaining communication between the first and second agents.
-Outcome:
-
-Automated system that connects an administrator for reservation approval.
-
-
-Providing the result: 
-
-please provide a link to your GitHub or EPAM GitLab repository in the answer field
-you can earn extra points if you provide the following artifacts: 
-a PowerPoint presentation explaining how the solution works, including relevant screenshots
-a README file with clear project documentation (setup, usage, structure, etc.)
-Automated test cases are implemented using pytest or unittest  (at least 2 tests per module)
-CI/CD automation and/or Infrastructure as Code (e.g., Terraform)
-if the code is poor quality, or too basic to be practical, and includes critical errors, the grade may be reduced
 
 
 # Stage 3: Process confirmed reservation by using MCP server

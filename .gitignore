@@ -5,4 +5,5 @@ __pycache__/
 .idea/
 faiss_db/
 data/parking.db
+data/dynamic/*.db
 .pytest_cache/
