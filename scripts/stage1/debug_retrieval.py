@@ -2,7 +2,7 @@ import sys
 import os
 
 # Add parent directory to path so we can import src
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from src.stage1.rag_chatbot import DocumentStore
 
@@ -15,3 +15,4 @@ print("\nFound documents:")
 for idx, similarity in hits:
     print(f"\nDocument {idx} (similarity={similarity:.4f}):")
     print(store.docs[idx][:200])
+
