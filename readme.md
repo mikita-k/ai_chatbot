@@ -8,7 +8,7 @@ A multi-stage project implementing a complete intelligent chatbot system for par
 |-------|--------|----------|
 | **Stage 1** | ✅ COMPLETE | RAG Chatbot, FAISS, Dynamic Data, LLM Integration, 5 Tests |
 | **Stage 2** | ✅ COMPLETE | Admin Approval, Telegram Integration, 16 Tests |
-| **Stage 3** | 🔄 IN PROGRESS | MCP Server, File Storage |
+| **Stage 3** | ✅ COMPLETE | MCP Server, Storage (CSV/SQLite), Validation, API Server |
 | **Stage 4** | ⏳ TODO | LangGraph Orchestration |
 
 ## Quick Start
@@ -84,6 +84,38 @@ python scripts/stage2/run_stage2.py --use-llm
 
 For detailed documentation, see [docs/STAGE2.md](docs/STAGE2.md) and [scripts/README.md](scripts/README.md)
 
+### Stage 3: Save Approved Reservations to Database
+
+**Simple & minimal**: Just saves admin-approved reservations to SQLite database.
+
+**Start test:**
+```powershell
+python scripts/stage3/test_integration.py
+```
+
+**Use in code:**
+```python
+from src.stage3.integrate import process_approved_reservation
+
+# After admin approval in Stage 2
+process_approved_reservation({
+    "reservation_id": "REQ-20260225100000-001",
+    "user_name": "John Doe",
+    "car_number": "ABC1234",
+    "start_date": "2026-03-01",
+    "end_date": "2026-03-07",
+    "approval_time": "2026-02-25T10:00:00",
+})
+```
+
+**Features:**
+- ✅ SQLite storage (data/reservations.db)
+- ✅ Simple 3-function API
+- ✅ Zero external dependencies (sqlite3 is built-in)
+- ✅ Ready for Stage 4
+
+For detailed info, see [docs/STAGE3_SIMPLE.md](docs/STAGE3.md)
+
 ---
 
 ## Original Technical Specification
@@ -108,38 +140,6 @@ a README file with clear project documentation (setup, usage, structure, etc.)
 Automated test cases are implemented using pytest or unittest  (at least 2 tests per module)
 CI/CD automation and/or Infrastructure as Code (e.g., Terraform)
 If the code is poor quality, or too basic to be practical, and includes critical errors, the grade may be reduced
-
-
-# Stage 3: Process confirmed reservation by using MCP server
-Not Started
-Starts Feb 14, 2026 Ends Feb 28, 2026 (14 days)
-
-What should be done
-*
-Tasks:
-
-Use any open-source MCP server that provides functionality to write data to file.  Alternatively, develop a simple MCP server using Python + FastApi to process confirmed reservations. 
-In case of MCP server is not possible to implement, use tool/function call for writing dada into file.  
-﻿
-
-Once the administrator (second agent) approves the reservation, the server should write the reservation details to a text file.
-File entry format: Name | Car Number | Reservation Period | Approval Time.
-Ensure the server is secure and resistant to unauthorized access, while ensuring reliable service.
-Outcome:
-
-A fully functional MCP server integrated with the previous agents.
-The server processes reservation data and saves it in storage.
-﻿
-
-Providing the result: 
-
-please provide a link to your GitHub or EPAM GitLab repository in the answer field
-you can earn extra points if you provide the following artifacts: 
-a PowerPoint presentation explaining how the solution works, including relevant screenshots
-a README file with clear project documentation (setup, usage, structure, etc.)
-Automated test cases are implemented using pytest or unittest  (at least 2 tests per module)
-CI/CD automation and/or Infrastructure as Code (e.g., Terraform)
-if the code is poor quality, or too basic to be practical, and includes critical errors, the grade may be reduced
 
 
 # Stage 4: Orchestrating All Components via LangGraph
