@@ -1,3 +1,4 @@
+# Stage 1: Core Functionality
 faiss-cpu>=1.7.0
 sentence-transformers>=2.2.0
 pytest>=7.0
@@ -10,4 +11,7 @@ requests>=2.31.0
 langchain>=0.1.0
 
 # Stage 3: Database storage (sqlite3 is built-in)
+# No additional packages needed
 
+# Stage 4: LangGraph Orchestration
+langgraph>=0.0.1

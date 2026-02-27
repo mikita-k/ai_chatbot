@@ -50,11 +50,13 @@ class TelegramApprovalChannel(ApprovalChannel):
         self.chat_id = str(chat_id)
         self.pending_requests: Dict[str, ReservationRequest] = {}
         self.responses: queue.Queue = queue.Queue()
+        self.application = None
+        self.app_thread = None
 
         # Try to import telegram library
         try:
             from telegram import Update, Bot
-            from telegram.ext import Application, CommandHandler, MessageHandler, filters
+            from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
             self.telegram_available = True
             self.Bot = Bot
             self.Update = Update
@@ -62,12 +64,136 @@ class TelegramApprovalChannel(ApprovalChannel):
             self.CommandHandler = CommandHandler
             self.MessageHandler = MessageHandler
             self.filters = filters
+            self.ContextTypes = ContextTypes
         except ImportError:
             self.telegram_available = False
             print(
                 "Warning: python-telegram-bot not installed. "
                 "Install it with: pip install python-telegram-bot"
             )
+            return
+
+        # Setup and start the bot
+        self._setup_bot()
+
+    def _setup_bot(self):
+        """Setup bot handlers and start polling in background thread."""
+        if not self.telegram_available:
+            return
+
+        try:
+            # Create application
+            self.application = self.Application.builder().token(self.bot_token).build()
+
+            # Add command handlers
+            self.application.add_handler(self.CommandHandler("start", self._handle_start))
+            self.application.add_handler(self.CommandHandler("pending", self._handle_pending))
+
+            # Add message handler for text messages (not commands)
+            self.application.add_handler(
+                self.MessageHandler(self.filters.TEXT & ~self.filters.COMMAND, self._handle_message)
+            )
+
+            # Start bot in background thread
+            self._start_bot()
+            print(f"✅ Telegram bot started (listening for messages)")
+        except Exception as e:
+            print(f"❌ Error setting up Telegram bot: {e}")
+            self.telegram_available = False
+
+    async def _handle_start(self, update: 'Update', context: 'ContextTypes') -> None:
+        """Handle /start command."""
+        try:
+            message = (
+                "Welcome to Parking Reservation System!\n\n"
+                "Available commands:\n"
+                "/start - Show this help message\n"
+                "/pending - List pending requests awaiting approval\n\n"
+                "To approve a request, send:\n"
+                "approve <REQUEST_ID>\n\n"
+                "To reject a request, send:\n"
+                "reject <REQUEST_ID> <reason>"
+            )
+            await update.message.reply_text(message)
+        except Exception as e:
+            print(f"Error handling /start: {e}")
+
+    async def _handle_pending(self, update: 'Update', context: 'ContextTypes') -> None:
+        """Handle /pending command to list pending requests."""
+        try:
+            # Get pending requests from the database
+            # Note: This would need a reference to the AdminAgent's database
+            message = (
+                "Pending requests feature is now available!\n\n"
+                "To approve a request, send:\n"
+                "`approve <REQUEST_ID>`\n\n"
+                "To reject a request, send:\n"
+                "`reject <REQUEST_ID> <reason>`\n\n"
+                "You will receive new reservation requests as messages in this chat."
+            )
+            await update.message.reply_text(message)
+        except Exception as e:
+            print(f"Error handling /pending: {e}")
+
+    async def _handle_message(self, update: 'Update', context: 'ContextTypes') -> None:
+        """Handle incoming messages from Telegram."""
+        try:
+            if not update.message or not update.message.text:
+                return
+
+            message_text = update.message.text.strip()
+
+            # Parse "approve <request_id>" or "reject <request_id> <reason>"
+            parts = message_text.split(None, 2)  # Split on whitespace, max 3 parts
+
+            if len(parts) < 2:
+                await update.message.reply_text(
+                    "❌ Invalid format. Use:\n"
+                    "`approve <request_id>`\n"
+                    "`reject <request_id> <reason>`",
+                    parse_mode="Markdown"
+                )
+                return
+
+            action = parts[0].lower()
+            request_id = parts[1]
+            reason = parts[2] if len(parts) > 2 else ""
+
+            if action == "approve":
+                self.add_response(request_id, approved=True, reason="Approved by admin")
+                await update.message.reply_text(f"✅ Request {request_id} approved!")
+
+            elif action == "reject":
+                if not reason:
+                    reason = "No reason provided"
+                self.add_response(request_id, approved=False, reason=reason)
+                await update.message.reply_text(f"❌ Request {request_id} rejected.\nReason: {reason}")
+
+            else:
+                await update.message.reply_text(
+                    "❌ Unknown command. Use:\n"
+                    "`approve <request_id>`\n"
+                    "`reject <request_id> <reason>`",
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            print(f"Error handling message: {e}")
+            try:
+                if update.message:
+                    await update.message.reply_text(f"❌ Error processing message: {str(e)}")
+            except Exception as reply_error:
+                print(f"Error sending error message: {reply_error}")
+
+    def _start_bot(self):
+        """Start bot polling in a background thread."""
+        def run_polling():
+            try:
+                self.application.run_polling(allowed_updates=["message"])
+            except Exception as e:
+                print(f"❌ Bot polling error: {e}")
+
+        self.app_thread = threading.Thread(target=run_polling, daemon=True)
+        self.app_thread.start()
 
     def send_request(self, request: ReservationRequest) -> bool:
         """Send reservation request to Telegram chat."""
@@ -118,6 +244,7 @@ class TelegramApprovalChannel(ApprovalChannel):
                 responses.append(response)
         except queue.Empty:
             pass
+
         return responses
 
     def add_response(self, request_id: str, approved: bool, reason: str = ""):
@@ -129,8 +256,15 @@ class TelegramApprovalChannel(ApprovalChannel):
         })
 
     def close(self):
-        """Close Telegram connection."""
-        pass
+        """Close Telegram connection and stop polling."""
+        if self.application:
+            try:
+                self.application.stop()
+                if self.app_thread:
+                    self.app_thread.join(timeout=5)
+                print("✅ Telegram bot stopped")
+            except Exception as e:
+                print(f"Error stopping bot: {e}")
 
 
 class SimulatedApprovalChannel(ApprovalChannel):

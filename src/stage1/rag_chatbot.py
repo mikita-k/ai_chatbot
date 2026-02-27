@@ -6,7 +6,6 @@ from typing import List, Tuple
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 # load .env if present
 try:
@@ -26,7 +25,8 @@ class DocumentStore:
         self.db_path = db_path
         os.makedirs(db_path, exist_ok=True)
 
-        # Initialize embedding model
+        # Initialize embedding model (lazy load)
+        from sentence_transformers import SentenceTransformer
         self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
         # Check if index already exists
