@@ -172,12 +172,143 @@ class Stage2Chatbot:
                     print("Goodbye! 👋\n")
                     break
 
+                # Handle standalone "reserve" - go interactive
                 if user_input.lower() == "reserve":
-                    # Collect reservation details
                     reservation_details = collect_reservation_interactive()
                     if reservation_details:
                         result = self.initiate_reservation(reservation_details)
                         print(f"\n{result['message']}")
+
+                        if result["success"]:
+                            req_id = result["request_id"]
+                            print(f"\n⏳ Waiting for admin response (timeout: 60s)...")
+                            status = self.wait_for_approval(req_id, timeout_sec=60)
+
+                            if status["approved"]:
+                                print(f"✅ YOUR REQUEST HAS BEEN APPROVED!")
+                                print(f"   Request ID: {status['request_id']}")
+                            else:
+                                print(f"❌ YOUR REQUEST HAS BEEN REJECTED")
+                                print(f"   Request ID: {status['request_id']}")
+                                if status.get("reason"):
+                                    print(f"   Reason: {status['reason']}")
+                        print()
+                    continue
+
+                if user_input.lower().startswith("reserve "):
+                    # Check if full reservation format on one line
+                    # Format: reserve <Name> <Surname> <Car> <dates>
+                    reservation_text = user_input[8:].strip()
+
+                    # Try to parse as full reservation (has date keywords)
+                    has_dates = (
+                        " с " in reservation_text.lower() or
+                        " from " in reservation_text.lower() or
+                        " от " in reservation_text.lower()
+                    )
+
+                    if has_dates:
+                        # Try to extract from single line
+                        import re
+                        months = {
+                            'января': '01', 'февраля': '02', 'марта': '03', 'апреля': '04',
+                            'мая': '05', 'июня': '06', 'июля': '07', 'августа': '08',
+                            'сентября': '09', 'октября': '10', 'ноября': '11', 'декабря': '12',
+                            'january': '01', 'february': '02', 'march': '03', 'april': '04',
+                            'may': '05', 'june': '06', 'july': '07', 'august': '08',
+                            'september': '09', 'october': '10', 'november': '11', 'december': '12'
+                        }
+
+                        # Parse Russian format: "с 5 по 12 июля 2026"
+                        m = re.search(r'с\s+(\d+)\s+по\s+(\d+)\s+(\S+)\s+(\d{4})', reservation_text.lower())
+                        if m:
+                            d1, d2, month_str, year = m.groups()
+                            month_num = months.get(month_str, '02')
+                            start_date = f"{year}-{month_num}-{d1.zfill(2)}"
+                            end_date = f"{year}-{month_num}-{d2.zfill(2)}"
+                            period = f"{start_date} 10:00 - {end_date} 12:00"
+
+                            # Extract name, surname, car
+                            # Pattern: word word alphanumeric
+                            name_match = re.search(
+                                r'(\S+)\s+(\S+)\s+([A-Za-z0-9\-]+)',
+                                reservation_text
+                            )
+                            if name_match:
+                                name, surname, car = name_match.groups()
+                                reservation_details = {
+                                    "name": name.capitalize(),
+                                    "surname": surname.capitalize(),
+                                    "car_number": car.upper(),
+                                    "period": period
+                                }
+
+                                result = self.initiate_reservation(reservation_details)
+                                print(f"\n{result['message']}")
+
+                                if result["success"]:
+                                    req_id = result["request_id"]
+                                    print(f"\n⏳ Waiting for admin response (timeout: 60s)...")
+                                    status = self.wait_for_approval(req_id, timeout_sec=60)
+
+                                    if status["approved"]:
+                                        print(f"✅ YOUR REQUEST HAS BEEN APPROVED!")
+                                        print(f"   Request ID: {status['request_id']}")
+                                    else:
+                                        print(f"❌ YOUR REQUEST HAS BEEN REJECTED")
+                                        print(f"   Request ID: {status['request_id']}")
+                                        if status.get("reason"):
+                                            print(f"   Reason: {status['reason']}")
+                                print()
+                            continue
+
+                        # Parse English format: "from 5 march to 12 march 2026"
+                        m = re.search(r'from\s+(\d+)\s+(\S+)\s+to\s+(\d+)\s+(\S+)\s+(\d{4})', reservation_text.lower())
+                        if m:
+                            d1, m1_str, d2, m2_str, year = m.groups()
+                            m1_num = months.get(m1_str, '02')
+                            m2_num = months.get(m2_str, '02')
+                            start_date = f"{year}-{m1_num}-{d1.zfill(2)}"
+                            end_date = f"{year}-{m2_num}-{d2.zfill(2)}"
+                            period = f"{start_date} 10:00 - {end_date} 12:00"
+
+                            # Extract name, surname, car
+                            name_match = re.search(
+                                r'(\S+)\s+(\S+)\s+([A-Za-z0-9\-]+)',
+                                reservation_text
+                            )
+                            if name_match:
+                                name, surname, car = name_match.groups()
+                                reservation_details = {
+                                    "name": name.capitalize(),
+                                    "surname": surname.capitalize(),
+                                    "car_number": car.upper(),
+                                    "period": period
+                                }
+
+                                result = self.initiate_reservation(reservation_details)
+                                print(f"\n{result['message']}")
+
+                                if result["success"]:
+                                    req_id = result["request_id"]
+                                    print(f"\n⏳ Waiting for admin response (timeout: 60s)...")
+                                    status = self.wait_for_approval(req_id, timeout_sec=60)
+
+                                    if status["approved"]:
+                                        print(f"✅ YOUR REQUEST HAS BEEN APPROVED!")
+                                        print(f"   Request ID: {status['request_id']}")
+                                    else:
+                                        print(f"❌ YOUR REQUEST HAS BEEN REJECTED")
+                                        print(f"   Request ID: {status['request_id']}")
+                                        if status.get("reason"):
+                                            print(f"   Reason: {status['reason']}")
+                                print()
+                            continue
+
+                    # Fall back to interactive mode if not full format
+                    reservation_details = collect_reservation_interactive()
+                    if reservation_details:
+                        result = self.initiate_reservation(reservation_details)
 
                         if result["success"]:
                             req_id = result["request_id"]

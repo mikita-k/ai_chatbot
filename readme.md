@@ -1,161 +1,314 @@
 # LLM Chatbot for Parking Space Reservation
 
-A multi-stage project implementing a complete intelligent chatbot system for parking space reservations using RAG (Retrieval-Augmented Generation), human-in-the-loop approval, and persistent storage.
+A complete AI-powered system for intelligent parking space reservation management using RAG (Retrieval-Augmented Generation), human-in-the-loop approval workflows, and persistent storage.
 
-## 🎯 Project Status
+## 🏗️ Architecture Overview
 
-| Stage | Status | Features |
-|-------|--------|----------|
-| **Stage 1** | ✅ COMPLETE | RAG Chatbot, FAISS, Dynamic Data, LLM Integration, 5 Tests |
-| **Stage 2** | ✅ COMPLETE | Admin Approval, Telegram Integration, 16 Tests |
-| **Stage 3** | ✅ COMPLETE | MCP Server, Storage (CSV/SQLite), Validation, API Server |
-| **Stage 4** | ✅ COMPLETE | LangGraph Orchestration, 34 Tests, Full Integration |
+The system is built in **4 integrated stages**, each adding capabilities:
 
-## Quick Start
-
-See [IMPLEMENTATION GUIDE](docs/IMPLEMENTATION.md) for detailed setup and usage instructions.
-
-### Stage 1: RAG Chatbot with FAISS
-
-**Basic usage (without LLM - uses pattern matching):**
-```powershell
-python -m src.stage1.rag_chatbot chat
 ```
-Interactive chatbot that answers parking-related questions using RAG with FAISS vector database and sentence-transformers embeddings.
-
-**With OpenAI LLM enabled:**
-```powershell
-python -m src.stage1.rag_chatbot chat --use-llm
-# Or set USE_LLM=true in .env + OPENAI_API_KEY
+┌─────────────────────────────────────────────────────────────┐
+│ User Interface (Interactive Chatbot)                         │
+└────────────┬────────────────────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────────────────────┐
+│ Stage 4: LangGraph Orchestration (Complete Workflow)        │
+│ - Routes requests intelligently                              │
+│ - Manages end-to-end processes                               │
+│ - Tracks request history                                     │
+└────┬──────────────────────┬──────────────┬──────────────────┘
+     │                      │              │
+┌────▼──────────┐  ┌────────▼──────┐  ┌──▼─────────────┐
+│ Stage 1: RAG  │  │ Stage 2:      │  │ Stage 3:       │
+│ Chatbot       │  │ Admin         │  │ Storage        │
+│               │  │ Approval      │  │                │
+│ • FAISS DB    │  │ • LangChain   │  │ • SQLite       │
+│ • Embeddings  │  │ • Telegram    │  │ • Persistence │
+│ • LLM (opt)   │  │ • Approval DB │  │ • Validation   │
+└───────────────┘  └───────────────┘  └────────────────┘
 ```
 
-**Check loaded documents:**
-```powershell
-python scripts/stage1/check_indices.py
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+```bash
+# Clone and install
+python -m pip install -r requirements.txt
+
+# Copy example config (optional - can run without)
+cp .env.example .env
 ```
-Display all documents loaded in the DocumentStore.
 
-**Debug retrieval:**
-```powershell
-python scripts/stage1/debug_retrieval.py
+### Run the System
+
+```bash
+# Everything in one command
+python scripts/stage4/run_orchestrator.py
+
+# Now interact with the chatbot:
+
+# Reservations (two ways)
+reserve John Smith ABC123 from 5 march to 12 march 2026
+reserve Иван Петров RS1234 с 5 по 12 июля 2026
+
+# Questions (NO "info" prefix needed!)
+What is the parking cost?
+Сколько стоит парковка?
+When are you open?
+Когда вы работаете?
+
+# Check status
+check status REQ-...
 ```
-Test retrieval functionality with sample queries and similarity scores.
 
-**Features:**
-- Vector database (FAISS) with sentence-transformers embeddings
-- Fast document retrieval with configurable top-k results
-- Optional OpenAI LLM for natural language generation
-- Dynamic document updates support
-- Low latency (~10ms per query)
+### Configure Features (Optional)
 
-For detailed documentation, see [docs/STAGE1.md](docs/STAGE1.md)
+Edit `.env` to enable:
 
-### Stage 2: Admin Approval with Telegram Integration
+```bash
+# Use OpenAI LLM for better responses
+USE_LLM=true
+OPENAI_API_KEY=sk-...
 
-**Default (Simulated Admin - No Setup Required):**
-```powershell
+# Use real Telegram for admin notifications
+USE_TELEGRAM=true
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ADMIN_CHAT_ID=...
+```
+
+Then run the same command - it reads from `.env`:
+
+```bash
+python scripts/stage4/run_orchestrator.py
+```
+
+---
+
+## 📋 Project Status
+
+| Stage | Status | Tests | What It Does |
+|-------|--------|-------|---|
+| **1: RAG Chatbot** | ✅ | 5/5 | Answer questions using FAISS + embeddings |
+| **2: Admin Approval** | ✅ | 16/16 | Human approval workflow + optional Telegram |
+| **3: Storage** | ✅ | 4/4 | Save approved reservations to SQLite |
+| **4: Orchestration** | ✅ | 34/34 | Complete system integration with LangGraph |
+| **TOTAL** | ✅ | **59/59** | All stages working together |
+
+---
+
+## 📖 Stage Documentation
+
+- **[Stage 1: RAG Chatbot](docs/STAGE1.md)** - Information retrieval
+- **[Stage 2: Admin Approval](docs/STAGE2.md)** - Approval workflow
+- **[Stage 3: Storage](docs/STAGE3.md)** - Data persistence
+- **[Stage 4: Orchestration](docs/STAGE4.md)** - Complete system
+
+---
+
+## 🎮 Usage Examples
+
+```bash
+# STAGE 2: Make a reservation (Two ways)
+
+# Way 1: One-liner (fast) - no extra questions
+reserve John Smith ABC123 from 5 march to 12 march 2026
+reserve Иван Петров RS1234 с 5 по 12 июля 2026
+
+# Way 2: Interactive (step-by-step) - system asks for details
+reserve
+# Bot will ask for name, surname, car, dates
+
+# STAGE 4: Ask questions WITHOUT "info" prefix (now works!)
+
+# English
+What is the parking cost?
+When are you open?
+How much is parking per hour?
+
+# Russian
+Сколько стоит парковка?
+Когда вы работаете?
+Как долго можно припарковаться?
+
+# Check status
+check status REQ-20260227192458-001
+
+# Get help
+help
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run Stage 4 tests (34 tests)
+python -m pytest tests/test_stage4.py -q
+
+# Run other stages
+python -m pytest tests/test_stage1.py -v
+python -m pytest tests/test_stage2_langchain.py -v
+```
+
+---
+
+## 🎯 Running Individual Stages
+
+### Stage 1: RAG Chatbot (Information Only)
+```bash
+python scripts/stage1/run_chatbot.py
+```
+**Use this for**: Answering questions about parking
+- What is the parking cost?
+- What are the working hours?
+- How do I book a space?
+
+**NOT for reservations** - use Stage 2 instead!
+
+### Stage 2: Approval Workflow (Reservations)
+```bash
 python scripts/stage2/run_stage2.py
 ```
-Interactive chatbot with auto-approval after 1 second. No external dependencies needed.
+**Use this for**: Making parking reservations
 
-**Setup Telegram (Optional - For Real Admin Notifications):**
-```powershell
-# 1. Create bot via @BotFather on Telegram, get TOKEN and CHAT_ID
-# 2. Create .env file with:
-TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_ADMIN_CHAT_ID=your_chat_id
-USE_LLM=true  # Optional: enable OpenAI LLM
+**Two ways to reserve:**
+
+1️⃣ **One-liner (fast, no extra questions):**
+```
+reserve John Smith ABC123 from 5 march to 12 march 2026
+reserve Иван Петров RS1234 с 5 по 12 июля 2026
 ```
 
-**Run with Telegram (2 terminals):**
-```powershell
-# Terminal 1: Chatbot
-python scripts/stage2/run_stage2.py
-
-# Terminal 2: Admin bot (waits for Telegram messages)
-python scripts/stage2/run_telegram_bot.py
+2️⃣ **Interactive (system asks for details):**
+```
+reserve
+[System prompts for: name, surname, car number, dates]
 ```
 
-**With OpenAI LLM enabled:**
-```powershell
-python scripts/stage2/run_stage2.py --use-llm
-# Or set USE_LLM=true in .env + OPENAI_API_KEY
+**Check status:**
+```
+status REQ-20260227192458-001
 ```
 
-For detailed documentation, see [docs/STAGE2.md](docs/STAGE2.md) and [scripts/README.md](scripts/README.md)
+If `USE_TELEGRAM=true` in .env, admin receives notifications. Otherwise, reservations are auto-approved for testing.
 
-### Stage 3: Save Approved Reservations to Database
+### Other Stages
+```bash
+# Stage 3: Storage testing
+python scripts/stage3/test_integration.py
 
-**Simple & minimal**: Just saves admin-approved reservations to SQLite database.
+# Stage 4: Full system (recommended - does everything)
+python scripts/stage4/run_orchestrator.py
+```
 
-**Start test:**
-```powershell
+---
+
+
+## ⚙️ Configuration
+
+**Environment Variables** (all optional, sensible defaults provided):
+
+```bash
+# OpenAI API (optional - for better LLM responses)
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+
+# Telegram (optional - for real admin notifications)
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ADMIN_CHAT_ID=...
+
+# Feature Flags (default: false)
+USE_LLM=false          # Enable OpenAI LLM
+USE_TELEGRAM=false     # Enable Telegram bot
+```
+
+---
+
+## 🌟 Key Features
+
+✅ **Works Out of the Box** - No setup required, simulated admin included
+✅ **Optional Features** - Enable LLM and Telegram as needed via `.env`
+✅ **Multi-language** - Russian and English support
+✅ **Date Flexibility** - Any date ranges, across months and years
+✅ **Fully Tested** - 59 tests across all components
+✅ **Production Ready** - Error handling, validation, logging
+
+---
+
+## 📦 Technology Stack
+
+- **Vector DB**: FAISS
+- **Embeddings**: Sentence-Transformers
+- **LLM**: OpenAI (optional)
+- **Orchestration**: LangGraph
+- **Approval Workflow**: LangChain
+- **Notifications**: Telegram Bot API (optional)
+- **Storage**: SQLite
+- **Testing**: Pytest
+
+---
+
+## 📁 Project Layout
+
+```
+hw/
+├── scripts/
+│   ├── stage1/run_chatbot.py
+│   ├── stage2/run_stage2.py
+│   ├── stage3/test_integration.py
+│   └── stage4/run_orchestrator.py
+├── src/stage{1,2,3,4}/
+├── tests/test_stage{1,2,3,4}.py
+├── docs/STAGE{1,2,3,4}.md
+├── data/ (SQLite, documents)
+├── faiss_db/ (vector index)
+└── .env.example
+```
+
+---
+
+## 🎓 System Workflow
+
+1. User submits request (reservation/info/status)
+2. Stage 4 routes to appropriate handler
+3. **Stage 1** (if info) - FAISS retrieval + optional LLM
+4. **Stage 2** (if reservation) - Collect details + send for approval
+5. **Stage 3** (if approved) - Store in SQLite
+6. Response sent to user
+
+---
+
+## ⚡ Quick Commands
+
+```bash
+# Start the system
+python scripts/stage4/run_orchestrator.py
+
+# Run tests
+python -m pytest tests/test_stage4.py -q
+
+# Check what's in the database
 python scripts/stage3/test_integration.py
 ```
 
-**Use in code:**
-```python
-from src.stage3.integrate import process_approved_reservation
+---
 
-# After admin approval in Stage 2
-process_approved_reservation({
-    "reservation_id": "REQ-20260225100000-001",
-    "user_name": "John Doe",
-    "car_number": "ABC1234",
-    "start_date": "2026-03-01",
-    "end_date": "2026-03-07",
-    "approval_time": "2026-02-25T10:00:00",
-})
-```
+## 🆘 Troubleshooting
 
-**Features:**
-- ✅ SQLite storage (data/reservations.db)
-- ✅ Simple 3-function API
-- ✅ Zero external dependencies (sqlite3 is built-in)
-- ✅ Ready for Stage 4
+| Issue | Solution |
+|-------|----------|
+| "Module not found" | `pip install -r requirements.txt` |
+| "No OPENAI_API_KEY" | It's optional! Enable with `USE_LLM=true` in `.env` |
+| "No TELEGRAM token" | It's optional! Enable with `USE_TELEGRAM=true` in `.env` |
+| Tests failing | Run single test: `pytest tests/test_stage4.py::test_name -v` |
 
-For detailed info, see [docs/STAGE3_SIMPLE.md](docs/STAGE3.md)
+---
 
-### Stage 4: LangGraph Orchestration
+**Happy parking! 🚗**
 
-**Complete integration of all components into unified workflow!**
-
-```powershell
-# Basic usage (simulated admin approval)
-python scripts/stage4/run_orchestrator.py
-
-# With OpenAI LLM enabled
-python scripts/stage4/run_orchestrator.py --use-llm
-
-# With Telegram notifications  
-python scripts/stage4/run_orchestrator.py --use-telegram
-```
-
-**What's Included:**
-- Complete LangGraph state machine orchestrating all stages
-- Automated routing between info requests and reservations
-- End-to-end workflow: User → RAG → Admin → Storage → Response
-- 34 comprehensive tests covering all scenarios
-- Interactive chatbot interface
-
-**Interactive Commands:**
-```
-User: help          - Show available commands
-User: info          - Ask about parking information
-User: reserve       - Make a parking reservation
-User: status        - Check reservation status
-User: summary       - Show all processed requests
-User: debug         - Enable debug output
-User: exit          - Exit the chatbot
-```
-
-**Features:**
-- ✅ Intelligent request routing (info vs. reservation)
-- ✅ RAG-based information retrieval (Stage 1)
-- ✅ Human-in-the-loop approval workflow (Stage 2)
-- ✅ Automatic data persistence (Stage 3)
-- ✅ Full error handling and recovery
-- ✅ Request history and status tracking
-- ✅ Performance metrics
-
-For detailed documentation, see [docs/STAGE4.md](docs/STAGE4.md)

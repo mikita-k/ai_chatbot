@@ -36,19 +36,26 @@ from src.stage2.chatbot_with_approval import Stage2Chatbot
 
 def main(use_llm: bool = False, use_telegram: Optional[bool] = None):
     print("\n" + "="*70)
-    print("🎯 STAGE 2 LANGCHAIN - CHATBOT")
+    print("🎯 STAGE 2: Admin Approval with Telegram Integration")
     print("="*70)
 
-    # Check for Telegram configuration
+    # If not explicitly set, read from environment
     if use_telegram is None:
-        # Auto-detect from environment if not explicitly set
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        use_telegram = bool(bot_token)
+        use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
+
+    # Auto-detect Telegram if enabled
+    if use_telegram and not os.getenv("TELEGRAM_BOT_TOKEN"):
+        print("⚠️  Warning: USE_TELEGRAM=true but TELEGRAM_BOT_TOKEN not set")
+        use_telegram = False
+
+    print(f"\n⚙️  Configuration:")
+    print(f"   LLM Enabled: {'✅' if use_llm else '❌'}")
+    print(f"   Telegram: {'✅' if use_telegram else '❌ (Simulated Admin)'}")
 
     if use_telegram:
-        print("✅ Telegram mode: Waiting for admin approval via bot")
+        print("\nℹ️  Telegram mode: Run 'python scripts/stage2/run_telegram_bot.py' in another terminal")
     else:
-        print("✅ Simulated mode: Auto-approval after 1 second (no Telegram needed)")
+        print("\n✅ Simulated mode: Auto-approval after 1 second (no Telegram needed)")
 
     # Initialize RAG store
     print("\n1. Initializing RAG Store (Stage 1)...")
@@ -127,6 +134,9 @@ if __name__ == "__main__":
         use_telegram = True
     elif args.no_telegram:
         use_telegram = False
+    else:
+        # Read from environment if not explicitly set via flags
+        use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
 
     main(use_llm=use_llm, use_telegram=use_telegram)
 

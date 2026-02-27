@@ -1,19 +1,31 @@
 #!/usr/bin/env python
 """
-Stage 4: Run Orchestration
+Stage 4: Complete LangGraph Orchestration
 
-Main entry point for the complete LangGraph orchestration system.
-Combines all stages (RAG, Admin Approval, Storage) into a unified workflow.
+Main entry point for the complete system combining:
+- RAG chatbot (Stage 1)
+- Admin approval (Stage 2)
+- Data storage (Stage 3)
+
+Configuration (from .env):
+- USE_LLM: Enable/disable OpenAI LLM
+- USE_TELEGRAM: Enable/disable Telegram notifications
+- OPENAI_API_KEY: OpenAI API key (required if USE_LLM=true)
+- TELEGRAM_BOT_TOKEN: Telegram bot token (required if USE_TELEGRAM=true)
 
 Usage:
     python scripts/stage4/run_orchestrator.py
-    python scripts/stage4/run_orchestrator.py --use-llm
-    python scripts/stage4/run_orchestrator.py --use-telegram
 """
 
 import sys
 import os
-import argparse
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -23,53 +35,32 @@ from src.stage4.orchestrator import create_orchestrator
 
 def main():
     """Main entry point for the orchestrator."""
-    parser = argparse.ArgumentParser(
-        description="Stage 4: LangGraph Orchestration for Parking Reservation System"
-    )
-    parser.add_argument(
-        "--use-llm",
-        action="store_true",
-        help="Enable OpenAI LLM for better responses (requires OPENAI_API_KEY)"
-    )
-    parser.add_argument(
-        "--use-telegram",
-        action="store_true",
-        help="Enable Telegram notifications for admin (requires TELEGRAM_BOT_TOKEN)"
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        default=True,
-        help="Print detailed workflow information"
-    )
 
-    args = parser.parse_args()
+    # Get configuration from environment
+    use_llm = os.getenv("USE_LLM", "false").lower() in ("true", "1", "yes")
+    use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
 
-    # Check environment
-    if args.use_llm:
-        if not os.getenv("OPENAI_API_KEY"):
-            print("⚠️  Warning: OPENAI_API_KEY not set, LLM disabled")
-            args.use_llm = False
+    # Validate configuration
+    if use_llm and not os.getenv("OPENAI_API_KEY"):
+        print("⚠️  Warning: USE_LLM=true but OPENAI_API_KEY not set")
+        use_llm = False
 
-    if args.use_telegram:
-        if not os.getenv("TELEGRAM_BOT_TOKEN"):
-            print("⚠️  Warning: TELEGRAM_BOT_TOKEN not set, using simulated admin")
-            args.use_telegram = False
+    if use_telegram and not os.getenv("TELEGRAM_BOT_TOKEN"):
+        print("⚠️  Warning: USE_TELEGRAM=true but TELEGRAM_BOT_TOKEN not set")
+        use_telegram = False
 
     # Create orchestrator
     print("\n" + "="*80)
-    print("🚀 INITIALIZING STAGE 4: LANGGRAPH ORCHESTRATION")
+    print("🚀 STAGE 4: LangGraph Orchestration")
     print("="*80)
     print(f"\n⚙️  Configuration:")
-    print(f"   LLM Enabled: {'✅' if args.use_llm else '❌'}")
-    print(f"   Telegram: {'✅' if args.use_telegram else '❌ (Simulated Admin)'}")
-    print(f"   Verbose: {'✅' if args.verbose else '❌'}")
+    print(f"   LLM Enabled: {'✅' if use_llm else '❌'}")
+    print(f"   Telegram: {'✅' if use_telegram else '❌ (Simulated Admin)'}")
     print()
-
     orchestrator = create_orchestrator(
-        use_llm=args.use_llm,
-        use_telegram=args.use_telegram,
-        verbose=args.verbose,
+        use_llm=use_llm,
+        use_telegram=use_telegram,
+        verbose=True,
     )
 
     # Run interactive mode

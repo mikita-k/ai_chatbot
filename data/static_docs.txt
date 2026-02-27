@@ -4,18 +4,20 @@ Our parking lot is open with the following schedule:
 - Weekends (Saturday-Sunday): 08:00 - 23:00
 We provide secure parking with CCTV and lighting.
 
-Pricing:
-Hourly rate is $2. Daily maximum is $20. Monthly passes are available.
+Pricing and Cost Information:
+Hourly rate: $2 per hour. Daily maximum: $20 per day. Monthly passes: available at discounted rates.
+Examples of parking costs: 1 hour = $2, 2 hours = $4, 3 hours = $6, 5 hours = $10, 10 hours = $20 (daily max).
+For longer periods, the daily maximum of $20 applies.
 
 Location:
 The parking is located at 123 Main Street, near the central mall. GPS coordinates: 45.0000, -120.0000.
 
-Booking process:
-To book a space, provide your name, surname, car number, and reservation period. After booking, an administrator will confirm.
+Booking and Reservation Process:
+To make a reservation or book a space, provide your name, surname, car number, and reservation period. After booking, an administrator will review and confirm your request.
 
 Availability:
-Availability updates every 5 minutes. Dynamic availability is stored separately from static info.
+Real-time availability updates every 5 minutes. Current availability information is maintained separately from this static information.
 
-Contact:
+Contact Information:
 Email: admin@parking.example.com
-
+Phone: 555-0123

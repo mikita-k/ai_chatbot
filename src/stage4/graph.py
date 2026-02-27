@@ -141,7 +141,6 @@ def build_orchestration_graph(
     Args:
         use_llm: Whether to use OpenAI LLM for better answers
         use_telegram: Whether to use Telegram for admin notifications
-        llm: Optional LangChain LLM instance
 
     Returns:
         tuple: (StateGraph, AdminAgent) - The graph and admin agent for resource cleanup
@@ -150,7 +149,23 @@ def build_orchestration_graph(
     from langgraph.graph import StateGraph, START, END
 
     # Initialize Stage 1: RAG Chatbot
-    doc_store = DocumentStore(docs=[], db_path="./faiss_db")
+    # Load documents from file or use sample data
+    import os
+    doc_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "static_docs.txt")
+    doc_path = os.path.abspath(doc_path)
+
+    if os.path.exists(doc_path):
+        doc_store = DocumentStore.from_file(doc_path, db_path="./faiss_db")
+    else:
+        # Fallback to sample docs if file not found
+        sample_docs = [
+            "Parking is available 24/7",
+            "Hourly rate: $2 per hour. Daily maximum: $20",
+            "Location: 123 Main Street",
+            "Reservation process: provide name, surname, car number, period",
+        ]
+        doc_store = DocumentStore(docs=sample_docs, db_path="./faiss_db")
+
     rag_chatbot = SimpleRAGChatbot(doc_store, use_llm=use_llm, include_dynamic=True)
 
     # Initialize Stage 2: Admin Agent
@@ -200,14 +215,17 @@ def build_orchestration_graph(
     def node_router(state: WorkflowState) -> WorkflowState:
         """
         Route the request based on its type.
-        Classifies user input into: info, reservation, status_check, or unknown.
+        Classifies user input into: info, reservation, or status_check.
+
+        Simple priority:
+        1. status_check - if contains: check, status, статус, проверь
+        2. reservation - if contains: reserve, book, бронь, резерв
+        3. info - everything else (any question/information request)
         """
         message = state.get("user_input", {}).get("message", "").lower().strip()
         state["state_history"].append("router")
 
-        # Check for status_check FIRST (before generic "info" keywords)
-        # This is important because messages may contain both "status" and "info" keywords
-        # Support both English and Russian keywords
+        # 1. Check for status_check FIRST
         if any(keyword in message for keyword in ["status", "check", "pending", "approved", "rejected", "статус", "проверь", "проверка"]):
             state["request_type"] = "status_check"
             # Try to extract request ID from message (e.g., "REQ-20260225225539-001")
@@ -215,17 +233,14 @@ def build_orchestration_graph(
             match = re.search(r'(REQ-\d{14}-\d{3})', message)
             if match:
                 state["request_id_lookup"] = match.group(1)
-        elif any(keyword in message for keyword in ["reserve", "book", "reservation", "parking", "зарезервировать", "бронь", "резерв", "парковка", "парковочное место"]):
-            if any(keyword in message for keyword in ["when", "how", "cost", "price", "hours", "available", "location", "info", "когда", "как", "стоимость", "цена", "часы", "время", "свободно", "место", "информация"]):
-                # Info about reservations
-                state["request_type"] = "info"
-            else:
-                # Actual reservation request
-                state["request_type"] = "reservation"
-        elif any(keyword in message for keyword in ["info", "how", "what", "where", "when", "cost", "price", "hours", "информация", "как", "что", "где", "когда", "стоимость", "цена", "часы"]):
-            state["request_type"] = "info"
+
+        # 2. Check for RESERVATION keywords
+        elif any(keyword in message for keyword in ["reserve", "book", "reservation", "зарезервировать", "бронь", "резерв"]):
+            state["request_type"] = "reservation"
+
+        # 3. DEFAULT: Everything else is INFO (any question or information request)
         else:
-            state["request_type"] = "unknown"
+            state["request_type"] = "info"
 
         return state
 
@@ -341,6 +356,18 @@ def build_orchestration_graph(
             user_message = state.get("user_input", {}).get("message", "").strip()
             user_message_lower = user_message.lower()
 
+            # Check if user just wrote "reserve" without details
+            if user_message_lower == "reserve" or (user_message_lower.startswith("reserve") and len(user_message) < 20):
+                state["errors"].append("Collection error: Please provide reservation details")
+                state["final_response"] = (
+                    "To make a reservation, please provide:\n"
+                    "  • Your name and surname\n"
+                    "  • Car number\n"
+                    "  • Reservation dates\n\n"
+                    "Example: reserve John Smith ABC123 from 5 march to 12 march 2026"
+                )
+                return state
+
             # Create a reservation request ID
             request_id = f"REQ-{datetime.now().strftime('%Y%m%d%H%M%S')}-001"
 
@@ -354,27 +381,27 @@ def build_orchestration_graph(
                 'september': '09', 'october': '10', 'november': '11', 'december': '12'
             }
 
-            # Extract name and surname - support Cyrillic
+            # Extract name and surname and car number - support both English and Cyrillic
+            # Pattern: reserve <Name> <Surname> <CarNumber> <dates>
+            # More precise regex: match exactly 2 words for name/surname, then car number
             name = "Unknown"
             surname = "User"
-            name_match = re.search(
-                r'reserve\s+([\w\sа-яёА-ЯЁ]+?)\s+([A-Za-z0-9]+[\-]?[A-Za-z0-9]+)',
+            car_number = "ABC1234"
+
+            # First try: extract everything after "reserve" until we hit a car number pattern
+            # Car number: alphanumeric with optional dash, must have both letters and digits
+            reserve_match = re.search(
+                r'reserve\s+(\S+)\s+(\S+)\s+([A-Za-z0-9]+[\-]?[A-Za-z0-9]+)',
                 user_message,
                 re.IGNORECASE | re.UNICODE
             )
-            if name_match:
-                names = name_match.group(1).strip().split()
-                if len(names) >= 2:
-                    name = names[0].capitalize()
-                    surname = names[1].capitalize()
-                elif names:
-                    name = names[0].capitalize()
 
-            # Extract car number
-            car_number = "ABC1234"
-            car_match = re.search(r'([A-Za-z0-9]+[\-]?[A-Za-z0-9]+)', user_message)
-            if car_match:
-                potential_car = car_match.group(1).upper()
+            if reserve_match:
+                name = reserve_match.group(1).capitalize()
+                surname = reserve_match.group(2).capitalize()
+                potential_car = reserve_match.group(3).upper()
+
+                # Validate car number has both letters and digits
                 if any(c.isdigit() for c in potential_car) and any(c.isalpha() for c in potential_car):
                     car_number = potential_car
 
