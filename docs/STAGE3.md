@@ -2,21 +2,13 @@
 
 Persistent storage system for approved parking reservations. Extends Stage 2 with SQLite database management for reservation records.
 
-**Status**: ✅ Complete | **Tests**: ✅ passing | **Duration**: 1 day
+**Status**: ✅ Complete | **Tests**: ✅ Passing
 
 ## Quick Start
 
-### Install Dependencies
-```powershell
-pip install -r requirements.txt
-```
+For scripts and commands, see [SCRIPTS.md](SCRIPTS.md).
 
-### Run Tests
-
-**Integration Test:**
-```powershell
-python scripts/stage3/test_integration.py
-```
+For testing information, see [../readme.md](../readme.md) (Testing section).
 
 ## Features
 
@@ -66,18 +58,6 @@ all_reservations = storage.get_all()
 reservation = storage.get_by_id("REQ-20260225100001-001")
 ```
 
-### Test Output
-
-```
-💾 Saving: REQ-20260225100001-001
-   User: Customer 1, Car: ABC1001
-   ✅ Saved to database
-
-📋 ALL APPROVED RESERVATIONS:
-1. REQ-20260225100001-001 - Customer 1 (ABC1001)
-   Period: 2026-02-26 → 2026-03-05
-```
-
 ## Architecture
 
 **Data Flow:**
@@ -92,13 +72,13 @@ Stage 3: ✅ SAVE TO DATABASE
 data/reservations.db (ready for Stage 4)
 ```
 
-**Module Structure:**
+## Module Structure
 
 ```
 src/stage3/
-├── storage.py        # ReservationStorage class - database operations
-├── integrate.py      # Integration functions with Stage 2
-└── __init__.py       # Module exports
+├── storage.py        # ReservationStorage class - database management
+├── integrate.py      # Integration with Stage 2
+└── __init__.py       # Exports
 ```
 
 ## Database Schema
@@ -164,16 +144,18 @@ if approval_status == "approved":
 
 ## Testing
 
-```powershell
-# Run integration tests
-python scripts/stage3/test_integration.py
+```bash
+# Run Stage 3 tests
+pytest tests/test_stage3.py -v
 ```
 
-**Tests Verify:**
-- ✅ Reservations are saved to database
-- ✅ Data is persisted correctly
-- ✅ Retrieval operations work
-- ✅ Integration with Stage 2 workflow
+**Tests Cover:**
+- ✅ Database initialization
+- ✅ Save reservations
+- ✅ Retrieve reservations
+- ✅ Data integrity and constraints
+- ✅ Error handling
+- ✅ Integration functions
 
 ## Advantages
 
@@ -185,5 +167,13 @@ python scripts/stage3/test_integration.py
 
 ## Next Steps
 
-Stage 4 (LangGraph) will use this persistent database to orchestrate all 3 stages and manage the complete workflow.
+This is Stage 3 of a multi-stage project:
+- [Stage 1: RAG Chatbot](STAGE1.md) (completed)
+- [Stage 2: Human-in-the-loop approval workflow](STAGE2.md) (completed)
+- **Stage 3: Persistent reservation storage** (current)
+- [Stage 4: LangGraph Orchestration](STAGE4.md)
 
+## Related Documentation
+
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) - Design Decisions
+- [../readme.md](../readme.md) - Main Project README

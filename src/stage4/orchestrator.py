@@ -97,9 +97,6 @@ class LangGraphOrchestrator:
             - errors: Any errors encountered
         """
 
-        if self.verbose:
-            print(f"\n📥 Processing request from {user_id}: {user_message}")
-
         # Build initial state
         initial_state: Dict[str, Any] = {
             "user_input": {
@@ -140,12 +137,6 @@ class LangGraphOrchestrator:
             "full_state": result_state,
         }
 
-        if self.verbose:
-            print(f"✅ Request processed")
-            print(f"   Type: {output['request_type']}")
-            print(f"   Path: {' → '.join(output['state_history'])}")
-            if output['errors']:
-                print(f"   Errors: {output['errors']}")
 
         return output
 

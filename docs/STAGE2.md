@@ -3,100 +3,89 @@
 
 Real-time parking reservation system with admin approval workflow. Extends Stage 1 with Telegram notifications and SQLite-based request tracking.
 
-**Status**: ✅ Complete | **Tests**: ✅ 16/16 passing | **Duration**: 2-3 days
+**Status**: ✅ Complete | **Tests**: ✅ Passing
 
 ## Quick Start
 
 ### Install Dependencies
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
-### Run the Chatbot (Simulated Admin)
+### Run
 
-**Interactive Chat (Telegram optional):**
-```powershell
-python run_stage2.py
-```
+See [docs/SCRIPTS.md](SCRIPTS.md) for detailed usage instructions:
 
-**Single Reservation:**
-```powershell
-python -m src.stage2.chatbot_with_approval reserve
-```
-
-**Check Request Status:**
-```powershell
-python -m src.stage2.chatbot_with_approval status --request-id REQ-20260224100000-001
-```
-
-### With Telegram Bot (Optional - Real Admin Notifications)
-
-**Terminal 1 - Chatbot:**
-```powershell
-python run_stage2.py
-```
-
-**Terminal 2 - Telegram Bot (separate window):**
-```powershell
-python run_telegram_bot.py
-```
+- **`scripts/stage2/run_stage2.py`** - Stage 1+2 chatbot with approval (default: simulated admin)
 
 ## Features
 
 - **Integrated Chatbot**: RAG queries (Stage 1) + Reservation requests (Stage 2)
 - **Approval Channels**:
   - **Simulated** (default): Auto-approval after 1 second - no dependencies
-  - **Telegram** (real): Real-time notifications to admin via Telegram
+  - **Telegram** (optional): Set `USE_TELEGRAM=true` in `.env` for real notifications
 - **Request Tracking**: SQLite database stores all reservation requests
 - **Status Workflow**: pending → approved/rejected
-- **Two Independent Processes**: Chatbot and Telegram bot can run separately
 - **Performance**: Fast retrieval latency, instant status updates
 
 ## Usage Examples
 
-### Chat Mode
+### Simulated Mode (Default)
 
-```powershell
-python run_stage2.py
+```bash
+python scripts/stage2/run_stage2.py
 ```
 
 ```
-You: info
-Parking Information:
-The parking is located at 123 Main Street...
-[similarity=0.500]
+You: What are the parking hours?
+Response: 07:00 - 22:00
 
-You: reserve
-Name: John Doe
-Surname: Doe
-Car number: ABC123
-Reservation period: 2026-02-24 10:00 - 2026-02-24 12:00
-
-📤 Submitting request to administrator...
+You: reserve John Smith ABC123 from 5 march to 12 march 2026
 ✅ Reservation request submitted!
-Request ID: REQ-20260224100000-001
+   Request ID: REQ-20260225100000-001
+   Your request has been sent to the administrator for review.
+   
+⏳ YOUR REQUEST IS PENDING ADMIN REVIEW
+   Request ID: REQ-20260225100000-001
+   Use 'status REQ-20260225100000-001' to check status
 
-⏳ Waiting for admin response (timeout: 60s)...
-✅ YOUR REQUEST HAS BEEN APPROVED!
-   Request ID: REQ-20260224100000-001
+You: status REQ-20260225100000-001
+Request Status: REQ-20260225100000-001
+Status: PENDING
+Approved: ❌ No
+
+(In simulated mode, approval happens after ~1 sec, check status again)
+
+You: status REQ-20260225100000-001
+Request Status: REQ-20260225100000-001
+Status: APPROVED
+Approved: ✅ Yes
 
 You: exit
 ```
 
-### Telegram Bot (With Admin Approval)
+**How it works:**
+1. **Submit**: User submits reservation, gets request ID
+2. **Wait**: System waits 2 seconds for admin response
+3. **Timeout**: Since no real admin responds in 2 seconds, shows PENDING
+4. **Check Status**: User checks status manually using `status <request_id>` command
+5. **Update**: Admin can approve via Telegram or simulated approval, status updates next check
 
-**Terminal 1 - User Makes Request:**
-```powershell
-python run_stage2.py
-```
-```
-You: reserve
-# Enter details... → REQ-20260224100000-001
+### With Telegram Notifications (Optional)
+
+First, set environment variables in `.env`:
+```bash
+USE_TELEGRAM=true
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_ADMIN_CHAT_ID=your_chat_id
 ```
 
-**Telegram - Admin Gets Notification:**
+Then run:
+```bash
+python scripts/stage2/run_stage2.py
 ```
-🚗 New Reservation Request
+```
+User submits reservation → admin gets Telegram notification → can approve/reject via Telegram.
 
 Request ID: REQ-20260224100000-001
 Name: John Doe
@@ -114,10 +103,14 @@ Admin: approve REQ-20260224100000-001
 Bot: ✅ Request REQ-20260224100000-001 approved!
 ```
 
-**Terminal 1 - User Gets Update:**
+**Terminal - User Gets Update:**
+```bash
+status REQ-20260224100000-001
 ```
-✅ YOUR REQUEST HAS BEEN APPROVED!
-   Request ID: REQ-20260224100000-001
+```
+Status: APPROVED ✅
+Details: Approved by admin
+Response time: 2026-02-28T18:07:58.868795
 ```
 
 ### Check Status Anytime
@@ -207,13 +200,9 @@ TELEGRAM_BOT_TOKEN=7728212407:AAGhaclG82tGNjv2hv2x60EFOg0iWDQTYUg
 TELEGRAM_ADMIN_CHAT_ID=461212123
 ```
 
-### Step 4: Run Both Scripts
+### Step 4: Run Script
 ```powershell
-# Terminal 1
-python run_stage2.py
-
-# Terminal 2 (separate window)
-python run_telegram_bot.py
+python scripts/stage2/run_stage2.py
 ```
 
 ### Telegram Commands
@@ -337,14 +326,22 @@ python test_stage2_quick.py
 
 | Command | Purpose |
 |---------|---------|
-| `python run_stage2.py` | Interactive chat (simulated admin) |
-| `python run_stage2.py --use-llm` | Chat with OpenAI |
+| `python run_stage2.py` | Interactive chat (see .env for config) |
 | `python run_telegram_bot.py` | Telegram bot (separate terminal) |
 | `python -m src.stage2.chatbot_with_approval reserve` | Direct reservation |
 | `python -m src.stage2.chatbot_with_approval status --request-id REQ-xxx` | Check status |
 | `pytest tests/test_stage2.py -v` | Run all tests (15 tests) |
 | `pytest tests/test_stage2.py --cov=src.stage2` | Coverage report |
 | `python examples_stage2.py` | Run examples |
+
+
+## Configuration (.env):
+| Variable | Purpose |
+|----------|---------|
+| `USE_LLM=true/false` | Enable/disable OpenAI LLM |
+| `USE_TELEGRAM=true/false` | Enable/disable Telegram |
+| `OPENAI_API_KEY=sk-...` | OpenAI key (required if USE_LLM=true) |
+| `TELEGRAM_BOT_TOKEN=...` | Telegram token (required if USE_TELEGRAM=true) |
 
 ## Workflow Example
 
@@ -389,11 +386,7 @@ python test_stage2_quick.py
    ```
    https://api.telegram.org/bot<YOUR_TOKEN>/getMe
    ```
-3. Run Telegram bot in separate terminal:
-   ```powershell
-   python run_telegram_bot.py
-   ```
-4. Check terminal output for connection logs
+3. Check terminal output for connection logs
 
 ### "python-telegram-bot not installed"
 
@@ -407,12 +400,6 @@ pip install python-telegram-bot>=20.0
 # Delete and let system recreate
 rm data/dynamic/approvals.db
 ```
-
-### Status Not Updating
-
-**With simulated mode:** Wait ~1-2 seconds
-
-**With Telegram:** Make sure `run_telegram_bot.py` is running in separate terminal
 
 ### Tests Fail
 
@@ -429,7 +416,7 @@ pytest tests/test_stage2.py -vv --tb=long
 ### Default: Simulated Admin (No Telegram)
 
 ```powershell
-python run_stage2.py
+python scripts/stage2/run_stage2.py
 ```
 
 - No external dependencies needed
@@ -439,26 +426,19 @@ python run_stage2.py
 
 ### With Telegram Bot (Real Admin)
 
-**Terminal 1:**
+**Terminal:**
 ```powershell
-python run_stage2.py
+python scripts/stage2/run_stage2.py
 ```
 
-**Terminal 2 (separate):**
-```powershell
-python run_telegram_bot.py
-```
-
-**Why this approach:**
-- ✅ Chatbot and bot run independently
-- ✅ Telegram bot writes directly to DB
-- ✅ Chatbot reads from same DB
-- ✅ No queue or threading issues
-- ✅ Simple and reliable
+- Make sure `.env` has `USE_TELEGRAM=true` and valid tokens
+- Admin gets real-time notifications in Telegram
+- Admin can approve/reject with commands
+- User gets status updates in chatbot
 
 **Admin gets notified on Telegram immediately when user submits request** ✨
 
-## Project Structure
+## Module Structure
 
 ```
 src/stage2/
@@ -514,10 +494,15 @@ Typical latencies:
 ## Next Steps
 
 This is Stage 2 of a multi-stage project:
-- **Stage 1**: RAG chatbot (completed)
-- **Stage 2**: Admin approval workflow (completed)
-- **Stage 3**: MCP server integration
-- **Stage 4**: Multi-agent orchestration
+- [Stage 1: RAG Chatbot](STAGE1.md) (completed)
+- **Stage 2: Human-in-the-loop approval workflow** (current)
+- [Stage 3: Persistent reservation storage](STAGE3.md)
+- [Stage 4: LangGraph Orchestration](STAGE4.md)
+
+## Related Documentation
+
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) - Design Decisions
+- [../readme.md](../readme.md) - Main Project README
 
 ---
 
@@ -527,20 +512,13 @@ This is Stage 2 of a multi-stage project:
 A: `pip install -r requirements.txt` then `pytest tests/test_stage2.py -v`
 
 **Q: How do I run the chatbot?**  
-A: `python run_stage2.py`
+A: `python scripts/stage2/run_stage2.py`
 
 **Q: How do I add Telegram notifications?**  
-A: Create `.env` with bot token and chat ID, run `python run_telegram_bot.py` in separate terminal
+A: Create `.env` with bot token and chat ID, set `USE_TELEGRAM=true`.
 
 **Q: What commands can I use in chatbot?**  
-A: `info`, `reserve`, `status REQ-xxx`, `exit`
-
-**Q: Are all tests passing?**  
-A: Should show ✅ 21 passed
+A: `help`, `reserve`, `status REQ-xxx`, `exit`
 
 **Q: How do I check the database?**  
 A: `sqlite3 data/dynamic/approvals.db "SELECT * FROM reservation_requests"`
-
-**Q: Something's broken**  
-A: Check "Troubleshooting" section above
-

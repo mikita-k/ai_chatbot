@@ -1,55 +1,27 @@
-<!-- Stage 4: LangGraph Orchestration -->
-
 # Stage 4: LangGraph Orchestration
 
 Complete orchestration of all components (RAG chatbot, admin approval, storage) using LangGraph state machine.
 
-**Status**: ✅ Complete | **Tests**: ✅ 34 Tests Passing | **Duration**: 2 days
+**Status**: ✅ Complete | **Tests**: ✅ Passing
 
 ## Quick Start
 
-### Installation
+For scripts and commands, see [SCRIPTS.md](SCRIPTS.md).
 
-All dependencies are in requirements.txt (already installed):
+For configuration details, see [../.env.example](../.env.example).
 
-```powershell
-pip install langgraph langchain
+**Basic Usage** (configuration from .env):
+```bash
+python scripts/stage4/run_orchestrator.py
 ```
 
-### Run Orchestrator
-
-```powershell
-# Basic interactive mode (simulated admin)
-python scripts/stage4/run_orchestrator.py
-
-# With OpenAI LLM enabled
-python scripts/stage4/run_orchestrator.py --use-llm
-
-# With Telegram notifications
-python scripts/stage4/run_orchestrator.py --use-telegram
-
-# With both LLM and Telegram
-python scripts/stage4/run_orchestrator.py --use-llm --use-telegram
-
+**Example Interaction**:
+```
 # Test reservation request
-reserve Иван Иванов RS1234 период с 1 марта по 3 марта 2026
+You: reserve Иван Иванов RS1234 с 1 марта по 3 марта 2026
 
 # Check reservation status
-check status REQ-XXX-###
-
-```
-
-### Run Tests
-
-```powershell
-# All Stage 4 tests
-python -m pytest tests/test_stage4.py -v
-
-# Specific test class
-python -m pytest tests/test_stage4.py::TestGraphCreation -v
-
-# Quick functionality check
-python test_stage4_quick.py
+You: status REQ-XXX-###
 ```
 
 ---
@@ -371,39 +343,7 @@ interactive_mode()
 
 ## Testing
 
-### Test Coverage
-
-34 tests organized in 9 test classes:
-
-| Test Class | Count | Focus |
-|-----------|-------|-------|
-| TestGraphCreation | 2 | Graph building and compilation |
-| TestOrchestratorInit | 2 | Orchestrator creation |
-| TestInfoRequests | 5 | Info request processing |
-| TestReservationRequests | 4 | Reservation workflow |
-| TestRequestHistory | 4 | Request tracking |
-| TestRoutingLogic | 3 | Request classification |
-| TestStateTransitions | 2 | State management |
-| TestErrorHandling | 4 | Edge cases |
-| TestEndToEndIntegration | 4 | Full workflows |
-| TestPerformanceMetrics | 2 | Performance |
-| TestMockIntegration | 2 | Component integration |
-
-### Running Tests
-
-```powershell
-# All tests
-pytest tests/test_stage4.py -v
-
-# By class
-pytest tests/test_stage4.py::TestInfoRequests -v
-
-# Specific test
-pytest tests/test_stage4.py::TestInfoRequests::test_info_request_returns_response -v
-
-# With coverage
-pytest tests/test_stage4.py --cov=src.stage4 --cov-report=html
-```
+For testing information, see [../readme.md](../readme.md) (Testing section).
 
 ---
 
@@ -426,166 +366,15 @@ pytest tests/test_stage4.py --cov=src.stage4 --cov-report=html
 
 ---
 
-## Configuration
+## Next Steps
 
-### Environment Variables
-
-```bash
-# LLM Configuration
-USE_LLM=true
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-3.5-turbo
-
-# Telegram Configuration (optional)
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_ADMIN_CHAT_ID=...
-
-# Logging
-VERBOSE=true
-```
-
-### Code Configuration
-
-```python
-orchestrator = create_orchestrator(
-    use_llm=True,           # Use OpenAI LLM
-    use_telegram=False,     # Use Telegram
-    verbose=True            # Print info
-)
-```
-
----
-
-## Performance Characteristics
-
-- **Request Processing**: ~1-2 seconds per request
-- **RAG Retrieval**: ~100ms per query
-- **Admin Approval**: ~500ms (simulated)
-- **Storage**: ~5-10ms per write
-- **Throughput**: 3-5 requests/second (single-threaded)
-
----
-
-## Error Handling
-
-The system handles errors gracefully:
-
-```python
-# Each node catches exceptions
-try:
-    # Process in node
-except Exception as e:
-    state["errors"].append(f"Node error: {str(e)}")
-    # Fallback response provided
-    state["final_response"] = "An error occurred. Please try again."
-
-# User sees friendly message
-print(result['final_response'])  # User-friendly error message
-
-# Errors logged for debugging
-print(result['errors'])  # Technical details
-```
-
----
-
-## Deployment
-
-### Local Deployment
-
-```powershell
-# Install dependencies
-pip install -r requirements.txt
-
-# Run orchestrator
-python scripts/stage4/run_orchestrator.py
-```
-
-### Docker Deployment
-
-```dockerfile
-FROM python:3.14
-WORKDIR /app
-COPY . .
-RUN pip install -r requirements.txt
-CMD ["python", "scripts/stage4/run_orchestrator.py"]
-```
-
-### Production Considerations
-
-1. **State Persistence**: Current implementation stores in memory. For production:
-   - Use distributed state store (Redis/Cassandra)
-   - Implement request ID mapping to database
-
-2. **Scaling**: For multiple workers:
-   - Use message queue (RabbitMQ/Kafka) for requests
-   - Implement request routing to workers
-
-3. **Monitoring**: Add logging:
-   - Request metrics (latency, success rate)
-   - Error tracking
-   - Admin approval SLAs
-
----
-
-## Future Enhancements
-
-1. **Multi-turn Conversations**: Support context across multiple messages
-2. **Request Queuing**: Handle burst loads with queue-based processing
-3. **Approval Webhooks**: External approval systems
-4. **Analytics**: Request metrics, user behavior analysis
-5. **Caching**: Cache RAG responses for common questions
-6. **Conditional Logic**: More sophisticated routing rules
-7. **Error Recovery**: Automatic retry for transient failures
-
----
-
-## Troubleshooting
-
-### Issue: "SimpleRAGChatbot not found"
-**Solution**: Ensure Stage 1 is initialized. Run:
-```bash
-python -m src.stage1.rag_chatbot chat
-```
-
-### Issue: "AdminAgent not initialized"
-**Solution**: Ensure Stage 2 database exists. It's created automatically.
-
-### Issue: "FAISS index not found"
-**Solution**: Create index by running Stage 1 once:
-```bash
-python -m src.stage1.rag_chatbot chat
-```
-
-### Issue: Slow response times
-**Solution**: Check:
-- FAISS index size (k=3 is default)
-- Network latency (if using remote LLM)
-- Database I/O (SQLite can be slow with large tables)
-
----
+This is Stage 4 of a multi-stage project:
+- [Stage 1: RAG Chatbot](STAGE1.md) (completed)
+- [Stage 2: Human-in-the-loop approval workflow](STAGE2.md) (completed)
+- [Stage 3: Persistent reservation storage](STAGE3.md) (completed)
+- **Stage 4: LangGraph Orchestration**(current)
 
 ## Related Documentation
 
-- [Stage 1: RAG Chatbot](docs/STAGE1.md)
-- [Stage 2: Admin Approval](docs/STAGE2.md)
-- [Stage 3: Storage](docs/STAGE3.md)
-- [Architecture Overview](ARCHITECTURE.md)
-
----
-
-## Project Status Summary
-
-| Component | Status | Tests |
-|-----------|--------|-------|
-| Graph Construction | ✅ Complete | 2/2 |
-| Orchestrator | ✅ Complete | 2/2 |
-| Info Requests (RAG) | ✅ Complete | 5/5 |
-| Reservations | ✅ Complete | 4/4 |
-| Request History | ✅ Complete | 4/4 |
-| Routing Logic | ✅ Complete | 3/3 |
-| State Management | ✅ Complete | 2/2 |
-| Error Handling | ✅ Complete | 4/4 |
-| Integration | ✅ Complete | 4/4 |
-| Performance | ✅ Complete | 2/2 |
-| **Total** | **✅ 34/34** | **✅ All Passing** |
-
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) - Design Decisions
+- [../readme.md](../readme.md) - Main Project README

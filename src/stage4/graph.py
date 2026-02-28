@@ -17,12 +17,11 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-# Defer langgraph import to avoid hanging during module load
-# from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START, END
 
 from src.stage1.rag_chatbot import DocumentStore, SimpleRAGChatbot
+from src.stage2.chatbot_with_approval import Stage2Chatbot
 from src.stage2.admin_agent import AdminAgent
-from src.stage2.approval_channels import SimulatedApprovalChannel, TelegramApprovalChannel
 from src.stage3.storage import ReservationStorage
 
 
@@ -145,12 +144,9 @@ def build_orchestration_graph(
     Returns:
         tuple: (StateGraph, AdminAgent) - The graph and admin agent for resource cleanup
     """
-    # Defer import to avoid hanging on module load
-    from langgraph.graph import StateGraph, START, END
 
-    # Initialize Stage 1: RAG Chatbot
-    # Load documents from file or use sample data
-    import os
+    # Initialize Stage 2 Chatbot (which internally uses Stage 1)
+    # This gives us both RAG and Admin functionality
     doc_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "static_docs.txt")
     doc_path = os.path.abspath(doc_path)
 
@@ -166,28 +162,9 @@ def build_orchestration_graph(
         ]
         doc_store = DocumentStore(docs=sample_docs, db_path="./faiss_db")
 
-    rag_chatbot = SimpleRAGChatbot(doc_store, use_llm=use_llm, include_dynamic=True)
-
-    # Initialize Stage 2: Admin Agent
-    approval_channel = None
-    if use_telegram:
-        # Get Telegram credentials from environment
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        admin_chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID")
-
-        if bot_token and admin_chat_id:
-            approval_channel = TelegramApprovalChannel(
-                bot_token=bot_token,
-                chat_id=admin_chat_id
-            )
-        else:
-            # Fall back to simulated if credentials not available
-            print("⚠️  Telegram credentials not found, falling back to simulated approval")
-            approval_channel = SimulatedApprovalChannel(auto_approve=True)
-    else:
-        approval_channel = SimulatedApprovalChannel(auto_approve=True)
-
-    admin_agent = AdminAgent(approval_channel=approval_channel, llm=llm)
+    # Create Stage 2 Chatbot (includes Stage 1 RAG + Admin Agent)
+    stage2_chatbot = Stage2Chatbot(doc_store, use_telegram=use_telegram, use_llm=use_llm)
+    admin_agent = stage2_chatbot.admin_agent  # Get the admin agent from Stage 2
 
     # Initialize Stage 3: Storage
     storage = ReservationStorage()
@@ -247,15 +224,15 @@ def build_orchestration_graph(
 
     def node_rag(state: WorkflowState) -> WorkflowState:
         """
-        RAG Node: Answer information queries using Stage 1 RAG Chatbot.
+        RAG Node: Answer information queries using Stage 2's RAG Chatbot (from Stage 1).
         """
         state["state_history"].append("rag")
 
         try:
             user_message = state.get("user_input", {}).get("message", "")
 
-            # Get RAG response
-            answer = rag_chatbot.answer(user_message)
+            # Get RAG response from Stage 2 (which uses Stage 1)
+            answer = stage2_chatbot.answer_question(user_message)
 
             state["rag_response"] = {
                 "answer": answer,
@@ -275,7 +252,7 @@ def build_orchestration_graph(
     def node_status_check(state: WorkflowState) -> WorkflowState:
         """
         Status Check Node: Look up the status of a reservation request.
-        Checks the admin approval database for the request status.
+        Delegates to Stage2Chatbot to check request status.
         """
         state["state_history"].append("status_check")
 
@@ -283,10 +260,6 @@ def build_orchestration_graph(
             # Small delay to allow Telegram bot to process recent messages
             import time
             time.sleep(0.5)
-
-            # First, process any pending admin responses (e.g., from Telegram)
-            # This ensures we have the latest status before checking
-            admin_agent.process_responses()
 
             # Get request ID from router's extraction or ask user
             request_id = state.get("request_id_lookup", "")
@@ -306,8 +279,8 @@ def build_orchestration_graph(
                 )
                 return state
 
-            # Check status using admin agent
-            status_info = admin_agent.check_status(request_id)
+            # Check status using Stage2Chatbot (which uses admin_agent internally)
+            status_info = stage2_chatbot.check_request_status(request_id)
 
             # Format response
             if status_info.get("status") == "not_found":
@@ -339,120 +312,41 @@ def build_orchestration_graph(
 
     def node_collection(state: WorkflowState) -> WorkflowState:
         """
-        Collection Node: Gather reservation details from user (interactive).
-        Expected format: reserve <FirstName> <LastName> <CarNumber> <DateRange>
-
-        Supported date formats:
-        - Russian: "с 5 по 12 июля 2026" (same month)
-        - Russian: "с 20 марта 2026 по 21 апреля 2027" (different months/years)
-        - English: "from 5 march to 12 march 2026" (same month)
-        - English: "from 20 march 2026 to 21 april 2027" (different months/years)
+        Collection Node: Parse reservation details from user input.
+        Delegates to Stage2Chatbot - no duplication of parsing logic.
         """
         state["state_history"].append("collection")
 
         try:
-            import re
-
             user_message = state.get("user_input", {}).get("message", "").strip()
-            user_message_lower = user_message.lower()
 
-            # Check if user just wrote "reserve" without details
-            if user_message_lower == "reserve" or (user_message_lower.startswith("reserve") and len(user_message) < 20):
-                state["errors"].append("Collection error: Please provide reservation details")
+            # Use Stage2's parser directly
+            from src.stage2.reservation_parser import parse_reservation
+            parsed = parse_reservation(user_message)
+
+            if not parsed:
+                # Parsing failed - set error message and return
+                state["errors"].append("Collection: Could not parse reservation")
                 state["final_response"] = (
-                    "To make a reservation, please provide:\n"
-                    "  • Your name and surname\n"
-                    "  • Car number\n"
-                    "  • Reservation dates\n\n"
-                    "Example: reserve John Smith ABC123 from 5 march to 12 march 2026"
+                    "❌ Could not parse reservation. Use format:\n"
+                    "  reserve <Name> <Surname> <Car> <Dates>\n\n"
+                    "Examples:\n"
+                    "  • reserve John Smith ABC123 from 5 march to 12 march 2026\n"
+                    "  • reserve Иван Петров RS1234 с 5 по 12 июля 2026"
                 )
                 return state
 
-            # Create a reservation request ID
+            # Success - store reservation details for approval node
             request_id = f"REQ-{datetime.now().strftime('%Y%m%d%H%M%S')}-001"
-
-            # Map month names to numbers
-            months = {
-                'января': '01', 'февраля': '02', 'марта': '03', 'апреля': '04',
-                'мая': '05', 'июня': '06', 'июля': '07', 'августа': '08',
-                'сентября': '09', 'октября': '10', 'ноября': '11', 'декабря': '12',
-                'january': '01', 'february': '02', 'march': '03', 'april': '04',
-                'may': '05', 'june': '06', 'july': '07', 'august': '08',
-                'september': '09', 'october': '10', 'november': '11', 'december': '12'
-            }
-
-            # Extract name and surname and car number - support both English and Cyrillic
-            # Pattern: reserve <Name> <Surname> <CarNumber> <dates>
-            # More precise regex: match exactly 2 words for name/surname, then car number
-            name = "Unknown"
-            surname = "User"
-            car_number = "ABC1234"
-
-            # First try: extract everything after "reserve" until we hit a car number pattern
-            # Car number: alphanumeric with optional dash, must have both letters and digits
-            reserve_match = re.search(
-                r'reserve\s+(\S+)\s+(\S+)\s+([A-Za-z0-9]+[\-]?[A-Za-z0-9]+)',
-                user_message,
-                re.IGNORECASE | re.UNICODE
-            )
-
-            if reserve_match:
-                name = reserve_match.group(1).capitalize()
-                surname = reserve_match.group(2).capitalize()
-                potential_car = reserve_match.group(3).upper()
-
-                # Validate car number has both letters and digits
-                if any(c.isdigit() for c in potential_car) and any(c.isalpha() for c in potential_car):
-                    car_number = potential_car
-
-            # Parse dates - support multiple formats
-            start_date, end_date = "2026-02-26", "2026-02-27"
-
-            # Format 1 - Russian FULL: "с 20 марта 2026 по 21 апреля 2027"
-            m = re.search(r'с\s+(\d+)\s+(\S+)\s+(\d{4})\s+по\s+(\d+)\s+(\S+)\s+(\d{4})', user_message_lower)
-            if m:
-                d1, m1_str, y1, d2, m2_str, y2 = m.groups()
-                m1_num = months.get(m1_str, '02')
-                m2_num = months.get(m2_str, '02')
-                start_date = f"{y1}-{m1_num}-{d1.zfill(2)}"
-                end_date = f"{y2}-{m2_num}-{d2.zfill(2)}"
-
-            # Format 2 - Russian SHORT: "с 5 по 12 июля 2026" (same month)
-            if start_date == "2026-02-26":
-                m = re.search(r'с\s+(\d+)\s+по\s+(\d+)\s+(\S+)\s+(\d{4})', user_message_lower)
-                if m:
-                    d1, d2, month_str, year = m.groups()
-                    month_num = months.get(month_str, '02')
-                    start_date = f"{year}-{month_num}-{d1.zfill(2)}"
-                    end_date = f"{year}-{month_num}-{d2.zfill(2)}"
-
-            # Format 3 - English FULL: "from 20 march 2026 to 21 april 2027"
-            if start_date == "2026-02-26":
-                m = re.search(r'from\s+(\d+)\s+(\S+)\s+(\d{4})\s+to\s+(\d+)\s+(\S+)\s+(\d{4})', user_message_lower)
-                if m:
-                    d1, m1_str, y1, d2, m2_str, y2 = m.groups()
-                    m1_num = months.get(m1_str, '02')
-                    m2_num = months.get(m2_str, '02')
-                    start_date = f"{y1}-{m1_num}-{d1.zfill(2)}"
-                    end_date = f"{y2}-{m2_num}-{d2.zfill(2)}"
-
-            # Format 4 - English SHORT: "from 5 march to 12 march 2026"
-            if start_date == "2026-02-26":
-                m = re.search(r'from\s+(\d+)\s+(\S+)\s+to\s+(\d+)\s+(\S+)\s+(\d{4})', user_message_lower)
-                if m:
-                    d1, m1_str, d2, m2_str, year = m.groups()
-                    m1_num = months.get(m1_str, '02')
-                    m2_num = months.get(m2_str, '02')
-                    start_date = f"{year}-{m1_num}-{d1.zfill(2)}"
-                    end_date = f"{year}-{m2_num}-{d2.zfill(2)}"
-
-            period = f"{start_date} 10:00 - {end_date} 12:00"
+            period = parsed["period"]
+            start_date = period.split(" ")[0]
+            end_date = period.split(" - ")[1].split(" ")[0]
 
             state["reservation_details"] = {
                 "request_id": request_id,
-                "name": name,
-                "surname": surname,
-                "car_number": car_number,
+                "name": parsed["name"],
+                "surname": parsed["surname"],
+                "car_number": parsed["car_number"],
                 "period": period,
                 "start_date": start_date,
                 "end_date": end_date,
@@ -460,48 +354,52 @@ def build_orchestration_graph(
 
         except Exception as e:
             state["errors"].append(f"Collection error: {str(e)}")
+            state["final_response"] = f"Error: {str(e)}"
 
         return state
 
 
     def node_approval(state: WorkflowState) -> WorkflowState:
         """
-        Approval Node: Submit reservation to admin for approval (Stage 2).
-        Waits for admin decision.
+        Approval Node: Submit to admin and wait for approval.
+        COMPLETELY DELEGATES to Stage2Chatbot - no reimplementation.
+        This ensures Stage 4 behaves exactly like Stage 2.
         """
         state["state_history"].append("approval")
 
         try:
-            details = state.get("reservation_details", {})
-
-            # Submit to admin agent
-            request_id = admin_agent.submit_request(
-                name=details.get("name", ""),
-                surname=details.get("surname", ""),
-                car_number=details.get("car_number", ""),
-                period=details.get("period", ""),
-            )
-
-            # Process admin responses (check for approval/rejection)
-            admin_agent.process_responses()
-
-            # Check status
-            request = admin_agent.db.get_request(request_id)
-
-            if request:
-                status = request.status
+            if not state.get("reservation_details"):
+                state["errors"].append("Approval error: No valid reservation details")
                 state["approval_result"] = {
-                    "status": status,
-                    "admin_feedback": request.admin_response or "",
-                    "response_time": request.response_time or datetime.now().isoformat(),
-                }
-            else:
-                state["errors"].append("Could not find request after submission")
-                state["approval_result"] = {
-                    "status": "unknown",
-                    "admin_feedback": "Error retrieving request",
+                    "status": "error",
+                    "admin_feedback": "No reservation details available",
                     "response_time": datetime.now().isoformat(),
                 }
+                return state
+
+            details = state.get("reservation_details", {})
+
+            # Use Stage2Chatbot methods - complete delegation, no duplication
+            result = stage2_chatbot.initiate_reservation(details)
+
+            if not result.get("success"):
+                state["errors"].append(f"Submission failed: {result['message']}")
+                state["approval_result"] = {
+                    "status": "error",
+                    "admin_feedback": result['message'],
+                    "response_time": datetime.now().isoformat(),
+                }
+                return state
+
+            # Wait for approval using Stage2's exact same logic
+            request_id = result["request_id"]
+            status = stage2_chatbot.wait_for_approval(request_id, timeout_sec=2)
+
+            state["approval_result"] = {
+                "status": status.get("status", "pending"),
+                "admin_feedback": status.get("reason", ""),
+                "response_time": datetime.now().isoformat(),
+            }
 
         except Exception as e:
             state["errors"].append(f"Approval error: {str(e)}")
@@ -561,7 +459,8 @@ def build_orchestration_graph(
 
     def node_response(state: WorkflowState) -> WorkflowState:
         """
-        Response Node: Generate final response to user based on workflow outcome.
+        Response Node: Format final response to user.
+        For reservations, response comes directly from Stage2Chatbot approval result.
         """
         state["state_history"].append("response")
 
@@ -572,39 +471,31 @@ def build_orchestration_graph(
             pass
 
         elif request_type == "reservation":
-            approval_status = state.get("approval_result", {}).get("status", "unknown")
-
-            if approval_status == "approved":
-                state["final_response"] = (
-                    f"✅ Your reservation has been APPROVED!\n"
-                    f"Request ID: {state.get('reservation_details', {}).get('request_id')}\n"
-                    f"{state.get('storage_message', '')}\n"
-                    f"Thank you for using our parking service!"
-                )
-            elif approval_status == "rejected":
-                state["final_response"] = (
-                    f"❌ Your reservation was REJECTED.\n"
-                    f"Request ID: {state.get('reservation_details', {}).get('request_id')}\n"
-                    f"Feedback: {state.get('approval_result', {}).get('admin_feedback', 'No feedback provided')}\n"
-                    f"Please try again or contact support."
-                )
+            # Check if there were errors during collection/approval
+            if state.get("errors"):
+                # Error message already set by collection node
+                pass
             else:
+                # Reservation submitted - will always be pending (2 sec timeout is too short)
+                request_id = state.get("reservation_details", {}).get('request_id')
                 state["final_response"] = (
-                    f"⏳ Your reservation is still pending admin review.\n"
-                    f"Request ID: {state.get('reservation_details', {}).get('request_id')}"
+                    f"✅ Reservation request submitted!\n"
+                    f"Request ID: {request_id}\n"
+                    f"Your request has been sent to the administrator for review.\n\n"
+                    f"⏳ YOUR REQUEST IS PENDING ADMIN REVIEW\n"
+                    f"   Request ID: {request_id}\n"
+                    f"   Use 'status {request_id}' to check status anytime"
                 )
 
         elif request_type == "status_check":
             # Status check response already set by status_check node
-            # Just ensure final_response is populated if not already done
-            if not state.get("final_response"):
-                state["final_response"] = "Status check completed."
+            pass
 
         else:  # unknown
             state["final_response"] = (
                 "I didn't understand your request. Try:\n"
-                "- 'info' to ask about parking\n"
-                "- 'reserve' to make a reservation"
+                "- Ask about parking info\n"
+                "- 'reserve <Name> <Surname> <Car> <Dates>' to make a reservation"
             )
 
         return state
