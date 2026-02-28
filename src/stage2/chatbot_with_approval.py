@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.stage1.rag_chatbot import DocumentStore, SimpleRAGChatbot, collect_reservation_interactive
 from src.stage2.admin_agent import AdminAgent, create_admin_agent
+from src.stage2.reservation_parser import parse_reservation
 
 
 class Stage2Chatbot:
@@ -31,8 +32,9 @@ class Stage2Chatbot:
     def __init__(
         self,
         rag_store: DocumentStore,
-        admin_agent: AdminAgent,
+        admin_agent: Optional[AdminAgent] = None,
         use_llm: bool = False,
+        use_telegram: bool = False,
         include_dynamic: bool = True
     ):
         """
@@ -40,12 +42,19 @@ class Stage2Chatbot:
 
         Args:
             rag_store: DocumentStore with parking information
-            admin_agent: LangChain AdminAgent for handling approvals
+            admin_agent: LangChain AdminAgent for handling approvals (optional, will be created if not provided)
             use_llm: Whether to use OpenAI LLM for responses
+            use_telegram: Whether to use Telegram for admin notifications
             include_dynamic: Whether to include real-time parking data
         """
         self.rag_bot = SimpleRAGChatbot(rag_store, use_llm=use_llm, include_dynamic=include_dynamic)
-        self.admin_agent = admin_agent
+
+        # If admin_agent not provided, create it
+        if admin_agent is None:
+            self.admin_agent = create_admin_agent(use_telegram=use_telegram)
+        else:
+            self.admin_agent = admin_agent
+
         self.active_requests = {}  # user_id -> request_id mapping
 
     def answer_question(self, question: str) -> str:
@@ -82,8 +91,7 @@ class Stage2Chatbot:
                 "message": (
                     f"✅ Reservation request submitted!\n"
                     f"Request ID: {request_id}\n"
-                    f"Your request has been sent to the administrator for review.\n"
-                    f"We will notify you when it's approved or rejected."
+                    f"Your request has been sent to the administrator for review."
                 ),
                 "status": "pending"
             }
@@ -105,24 +113,30 @@ class Stage2Chatbot:
         Returns:
             Status dictionary from agent
         """
+        # First process any pending responses from Telegram/admin
+        self.admin_agent.process_responses()
+        # Then check and return status
         return self.admin_agent.check_status(request_id)
 
     def wait_for_approval(
         self,
         request_id: str,
-        timeout_sec: float = 60,
-        poll_interval_sec: float = 1
+        timeout_sec: float = 2,
+        poll_interval_sec: float = 0.5
     ) -> dict:
         """
-        Wait for admin approval with timeout.
+        Wait for admin approval with short timeout.
+
+        With timeout_sec=2, admin won't respond in time.
+        User should check status manually using 'status <request_id>' command.
 
         Args:
             request_id: Request ID to wait for
-            timeout_sec: Maximum time to wait
-            poll_interval_sec: How often to poll for updates
+            timeout_sec: Maximum time to wait (default: 2 seconds)
+            poll_interval_sec: How often to poll for updates (default: 0.5 seconds)
 
         Returns:
-            Final status of request
+            Status dict - will be "pending" since timeout is too short for admin response
         """
         elapsed = 0
         while elapsed < timeout_sec:
@@ -135,12 +149,9 @@ class Stage2Chatbot:
             time.sleep(poll_interval_sec)
             elapsed += poll_interval_sec
 
-        return {
-            "request_id": request_id,
-            "status": "timeout",
-            "approved": False,
-            "reason": f"No response from admin within {timeout_sec}s"
-        }
+        # Timeout: Process one final time to catch any last-minute responses
+        self.admin_agent.process_responses()
+        return self.check_request_status(request_id)
 
     def interactive_chat(self, use_llm: bool = False):
         """
@@ -172,27 +183,32 @@ class Stage2Chatbot:
                     print("Goodbye! 👋\n")
                     break
 
-                if user_input.lower() == "reserve":
-                    # Collect reservation details
-                    reservation_details = collect_reservation_interactive()
-                    if reservation_details:
-                        result = self.initiate_reservation(reservation_details)
+                if user_input.lower().startswith("reserve"):
+                    # Parse reservation from single line
+                    parsed = parse_reservation(user_input)
+
+                    if parsed:
+                        # Successfully parsed! Submit directly
+                        result = self.initiate_reservation(parsed)
                         print(f"\n{result['message']}")
 
                         if result["success"]:
                             req_id = result["request_id"]
-                            print(f"\n⏳ Waiting for admin response (timeout: 60s)...")
-                            status = self.wait_for_approval(req_id, timeout_sec=60)
+                            status = self.wait_for_approval(req_id, timeout_sec=2)
 
-                            if status["approved"]:
-                                print(f"✅ YOUR REQUEST HAS BEEN APPROVED!")
-                                print(f"   Request ID: {status['request_id']}")
-                            else:
-                                print(f"❌ YOUR REQUEST HAS BEEN REJECTED")
-                                print(f"   Request ID: {status['request_id']}")
-                                if status.get("reason"):
-                                    print(f"   Reason: {status['reason']}")
+                            # Always pending (2 sec timeout is too short for admin)
+                            print(f"⏳ YOUR REQUEST IS PENDING ADMIN REVIEW")
+                            print(f"   Request ID: {req_id}")
+                            print(f"   Use 'status {req_id}' to check status")
                         print()
+                    else:
+                        # Could not parse - show error with format
+                        print("\n❌ Could not parse reservation.")
+                        print("Format: reserve <Name> <Surname> <Car> <Dates>")
+                        print("Examples:")
+                        print("  • reserve John Smith ABC123 from 5 march to 12 march 2026")
+                        print("  • reserve Иван Петров RS1234 с 5 по 12 июля 2026\n")
+                    continue
 
                 elif user_input.lower().startswith("status "):
                     req_id = user_input[7:].strip()
@@ -230,17 +246,12 @@ class Stage2Chatbot:
 
         if result["success"]:
             req_id = result["request_id"]
-            print(f"\n⏳ Waiting for admin response (timeout: 60s)...")
-            status = self.wait_for_approval(req_id, timeout_sec=60)
+            status = self.wait_for_approval(req_id, timeout_sec=2)
 
-            if status["approved"]:
-                print(f"\n✅ YOUR REQUEST HAS BEEN APPROVED!")
-                print(f"   Request ID: {status['request_id']}")
-            else:
-                print(f"\n❌ YOUR REQUEST HAS BEEN REJECTED")
-                print(f"   Request ID: {status['request_id']}")
-                if status.get("reason"):
-                    print(f"   Reason: {status['reason']}")
+            # Always pending (2 sec timeout is too short)
+            print(f"\n⏳ YOUR REQUEST IS PENDING ADMIN REVIEW")
+            print(f"   Request ID: {req_id}")
+            print(f"   Use 'status {req_id}' to check status")
 
         print()
 

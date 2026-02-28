@@ -4,18 +4,48 @@ Our parking lot is open with the following schedule:
 - Weekends (Saturday-Sunday): 08:00 - 23:00
 We provide secure parking with CCTV and lighting.
 
-Pricing:
-Hourly rate is $2. Daily maximum is $20. Monthly passes are available.
+Pricing and Cost Information:
+Hourly rate: $2 per hour. Daily maximum: $20 per day. Monthly passes: available at discounted rates.
+Examples of parking costs: 1 hour = $2, 2 hours = $4, 3 hours = $6, 5 hours = $10, 10 hours = $20 (daily max).
+For longer periods, the daily maximum of $20 applies.
 
 Location:
 The parking is located at 123 Main Street, near the central mall. GPS coordinates: 45.0000, -120.0000.
 
-Booking process:
-To book a space, provide your name, surname, car number, and reservation period. After booking, an administrator will confirm.
+Booking and Reservation Process:
+To make a reservation or book a space, provide your name, surname, car number, and reservation period. After booking, an administrator will review and confirm your request.
 
 Availability:
-Availability updates every 5 minutes. Dynamic availability is stored separately from static info.
+Real-time availability updates every 5 minutes. Current availability information is maintained separately from this static information.
 
-Contact:
+Contact Information:
 Email: admin@parking.example.com
+Phone: 5550123
 
+
+
+
+
+Общая информация о парковке:
+Наша парковка работает по следующему расписанию:
+- В будние дни (понедельник-пятница): 07:00 - 22:00
+- В выходные дни (суббота-воскресенье): 08:00 - 23:00
+Мы предоставляем охраняемую парковку с видеонаблюдением и освещением.
+
+Информация о ценах:
+Почасовая ставка: 2 доллара в час. Максимальная суточная ставка: 20 долларов в день. Месячные абонементы: доступны по сниженным ценам.
+Примеры стоимости парковки: 1 час = 2 доллара, 2 часа = 4 доллара, 3 часа = 6 долларов, 5 часов = 10 долларов, 10 часов = 20 долларов (максимальная суточная/дневная ставка).
+Для более длительных периодов действует максимальная суточная ставка в 20 долларов.
+
+Местоположение:
+Парковка расположена по адресу: 123 Main Street, рядом с торговым центром. Координаты GPS: 45.0000, -120.0000.
+
+Процесс бронирования:
+Для бронирования места укажите ваше имя, фамилию, номер автомобиля и период бронирования. После бронирования администратор рассмотрит и подтвердит ваш запрос.
+
+Доступность:
+Информация о доступности обновляется в режиме реального времени каждые 5 минут. Текущая информация о доступности хранится отдельно от статической информации.
+
+Контактная информация:
+Электронная почта: admin@parking.example.com
+Телефон: 5550123

@@ -8,17 +8,17 @@ Run this in one terminal:
 In separate terminal run Telegram bot:
     python scripts/stage2/run_telegram_bot.py
 
-Environment variables (optional):
-    TELEGRAM_BOT_TOKEN - Bot token from @BotFather
-    TELEGRAM_ADMIN_CHAT_ID - Chat ID where admin receives notifications
-    USE_LLM - Set to 'true', '1', or 'yes' to enable OpenAI LLM
+Configuration (.env file):
+    USE_LLM=true|false              - Enable/disable OpenAI LLM (default: false)
+    USE_TELEGRAM=true|false         - Enable/disable Telegram (default: false, uses simulated admin)
+    OPENAI_API_KEY=xxx              - Required if USE_LLM=true
+    TELEGRAM_BOT_TOKEN=xxx          - Required if USE_TELEGRAM=true
+    TELEGRAM_ADMIN_CHAT_ID=xxx      - Required if USE_TELEGRAM=true
 """
 
 import sys
 import os
-import argparse
 from pathlib import Path
-from typing import Optional
 
 # Load environment variables
 try:
@@ -30,25 +30,31 @@ except Exception:
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.stage1.rag_chatbot import DocumentStore
-from src.stage2.admin_agent import create_admin_agent
 from src.stage2.chatbot_with_approval import Stage2Chatbot
 
 
-def main(use_llm: bool = False, use_telegram: Optional[bool] = None):
+def main():
     print("\n" + "="*70)
-    print("🎯 STAGE 2 LANGCHAIN - CHATBOT")
+    print("🎯 STAGE 2: Admin Approval with Telegram Integration")
     print("="*70)
 
-    # Check for Telegram configuration
-    if use_telegram is None:
-        # Auto-detect from environment if not explicitly set
-        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        use_telegram = bool(bot_token)
+    # Read configuration from environment only
+    use_llm = os.getenv("USE_LLM", "false").lower() in ("true", "1", "yes")
+    use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
+
+    # Auto-detect Telegram if enabled
+    if use_telegram and not os.getenv("TELEGRAM_BOT_TOKEN"):
+        print("⚠️  Warning: USE_TELEGRAM=true but TELEGRAM_BOT_TOKEN not set")
+        use_telegram = False
+
+    print(f"\n⚙️  Configuration:")
+    print(f"   LLM Enabled: {'✅' if use_llm else '❌'}")
+    print(f"   Telegram: {'✅' if use_telegram else '❌ (Simulated Admin)'}")
 
     if use_telegram:
-        print("✅ Telegram mode: Waiting for admin approval via bot")
+        print("\nℹ️  Telegram mode: Run 'python scripts/stage2/run_telegram_bot.py' in another terminal")
     else:
-        print("✅ Simulated mode: Auto-approval after 1 second (no Telegram needed)")
+        print("\n✅ Simulated mode: Auto-approval after 1 second (no Telegram needed)")
 
     # Initialize RAG store
     print("\n1. Initializing RAG Store (Stage 1)...")
@@ -61,24 +67,19 @@ def main(use_llm: bool = False, use_telegram: Optional[bool] = None):
         print(f"   ✗ Error loading RAG store: {e}")
         sys.exit(1)
 
-    # Initialize admin agent
-    print("2. Initializing LangChain Admin Agent (Stage 2)...")
+    # Create integrated chatbot (Stage 2 will create AdminAgent internally)
+    print("2. Creating integrated chatbot...")
     try:
-        admin_agent = create_admin_agent(use_telegram=use_telegram)
-        print("   ✓ Admin Agent initialized")
+        chatbot = Stage2Chatbot(
+            rag_store=store,
+            use_telegram=use_telegram,
+            use_llm=use_llm
+        )
+        print("   ✓ Chatbot ready with AdminAgent")
     except ValueError as e:
         print(f"   ✗ Error: {e}")
         print("   ℹ️  Set TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_CHAT_ID to use Telegram")
         sys.exit(1)
-    except Exception as e:
-        print(f"   ✗ Error: {e}")
-        sys.exit(1)
-
-    # Create integrated chatbot
-    print("3. Creating integrated chatbot...")
-    try:
-        chatbot = Stage2Chatbot(store, admin_agent, use_llm=use_llm)
-        print("   ✓ Chatbot ready")
     except Exception as e:
         print(f"   ✗ Error: {e}")
         sys.exit(1)
@@ -102,31 +103,6 @@ def main(use_llm: bool = False, use_telegram: Optional[bool] = None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Stage 2 LangChain Chatbot")
-    parser.add_argument(
-        "--use-llm",
-        action="store_true",
-        help="Use OpenAI LLM for responses (requires OPENAI_API_KEY)"
-    )
-    parser.add_argument(
-        "--telegram",
-        action="store_true",
-        help="Force use of Telegram channel"
-    )
-    parser.add_argument(
-        "--no-telegram",
-        action="store_true",
-        help="Force use of simulated channel"
-    )
+    main()
 
-    args = parser.parse_args()
-
-    use_llm = args.use_llm or os.getenv("USE_LLM", "").lower() in ("true", "1", "yes")
-    use_telegram = None
-    if args.telegram:
-        use_telegram = True
-    elif args.no_telegram:
-        use_telegram = False
-
-    main(use_llm=use_llm, use_telegram=use_telegram)
 

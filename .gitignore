@@ -6,4 +6,5 @@ __pycache__/
 faiss_db/
 data/parking.db
 data/dynamic/*.db
+data/reservations.db
 .pytest_cache/

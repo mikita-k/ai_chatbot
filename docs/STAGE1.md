@@ -1,34 +1,24 @@
-# Parking Space RAG Chatbot - Stage 1
+# Stage 1: RAG Chatbot
 
-A simple RAG chatbot that helps users find parking information and make reservations using semantic search and AI.
+A semantic search-based chatbot for parking information using FAISS vector database and embeddings.
+
+**Status**: ✅ Complete | **Tests**: ✅ Passing
 
 ## Quick Start
 
 ### Install Dependencies
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
-### Run the Chatbot
+### Run
 
-**Interactive Chat (Local, no API key needed):**
-```powershell
-python -m src.stage1.rag_chatbot chat
-```
+See [docs/SCRIPTS.md](SCRIPTS.md) (Stage 1 block) for detailed usage instructions:
 
-**Single Query:**
-```powershell
-python -m src.stage1.rag_chatbot qa --query "where is the parking?"
-```
-
-**With OpenAI LLM (requires API key):**
-```powershell
-# Set API key first
-$env:OPENAI_API_KEY = "sk-your-key-here"
-
-# Then run
-python -m src.stage1.rag_chatbot chat --use-llm
-```
+- **`scripts/stage1/run_chatbot.py`** - Interactive RAG chatbot
+- **`scripts/stage1/check_indices.py`** - Debug: show loaded documents
+- **`scripts/stage1/debug_retrieval.py`** - Debug: test retrieval
+- **`scripts/stage1/clean_faiss_db.py`** - Debug: rebuild FAISS index when docs change
 
 ## Features
 
@@ -44,7 +34,7 @@ python -m src.stage1.rag_chatbot chat --use-llm
 
 ### Local Mode
 ```powershell
-python -m src.stage1.rag_chatbot chat
+python scripts/stage1/run_chatbot.py
 ```
 ```
 You: How much does it cost per hour?
@@ -65,9 +55,20 @@ You: exit
 ```
 
 ### LLM Mode (Better Quality Answers)
+
+Set environment variable and run:
 ```powershell
+# Option 1: Set environment variable
+$env:USE_LLM = "true"
 $env:OPENAI_API_KEY = "sk-your-key-here"
-python -m src.stage1.rag_chatbot chat --use-llm
+
+# Option 2: Use .env file
+# Create .env with:
+# USE_LLM=true
+# OPENAI_API_KEY=sk-...
+
+# run chatbot
+python -m src.stage1.rag_chatbot chat
 ```
 ```
 You: How much does it cost for 2 hours?
@@ -118,36 +119,11 @@ Final Answer
 - **Static Data**: `data/static_docs.txt` (parking info, rules, contact)
 - **Dynamic Data**: SQLite database (availability, pricing, hours)
 
-## Environment Variables
+## Running & Testing
 
-Create `.env` file for OpenAI integration (optional):
-```
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
-```
+For scripts and commands, see [SCRIPTS.md](SCRIPTS.md).
 
-Or copy from template:
-```powershell
-Copy-Item .env.example .env
-```
-
-## Testing
-
-Run all tests:
-```powershell
-python -m pytest tests/test_stage1.py -v
-```
-
-Expected output:
-```
-test_guard_rails_email_redaction PASSED
-test_guard_rails_number_redaction PASSED
-test_documentstore_retrieval PASSED
-test_simple_rag_answer PASSED
-test_dynamic_data_included PASSED
-
-===================== 5 passed =====================
-```
+For testing information, see [../readme.md](../readme.md) (Testing section).
 
 ## What's Included
 
@@ -173,8 +149,7 @@ test_dynamic_data_included PASSED
 |---------|---------|
 | `python -m src.stage1.rag_chatbot chat` | Interactive chat |
 | `python -m src.stage1.rag_chatbot qa --query "..."` | Single query |
-| `python -m src.stage1.rag_chatbot chat --use-llm` | Chat with OpenAI |
-| `python -m pytest tests/test_stage1.py -v` | Run tests |
+| `pytest tests/test_stage1.py -v` | Run tests |
 | `python scripts/check_indices.py` | Debug: show loaded documents |
 | `python scripts/debug_retrieval.py` | Debug: test retrieval |
 
@@ -198,7 +173,12 @@ Typical latencies (local machine, no LLM):
 ## Next Steps
 
 This is Stage 1 of a multi-stage project:
-- **Stage 2**: Human-in-the-loop approval workflow
-- **Stage 3**: Persistent reservation storage
-- **Stage 4**: Multi-agent orchestration
+- **Stage 1: RAG Chatbot** (current)
+- [Stage 2: Human-in-the-loop approval workflow](STAGE2.md)
+- [Stage 3: Persistent reservation storage](STAGE3.md)
+- [Stage 4: LangGraph Orchestration](STAGE4.md)
 
+## Related Documentation
+
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) - Design Decisions
+- [../readme.md](../readme.md) - Main Project README
