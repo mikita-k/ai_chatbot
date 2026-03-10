@@ -41,6 +41,7 @@ def main():
     # Read configuration from environment only
     use_llm = os.getenv("USE_LLM", "false").lower() in ("true", "1", "yes")
     use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
+    eval_verbose = os.getenv("EVAL_VERBOSE", "false").lower() in ("true", "1", "yes")
 
     # Auto-detect Telegram if enabled
     if use_telegram and not os.getenv("TELEGRAM_BOT_TOKEN"):
@@ -50,6 +51,7 @@ def main():
     print(f"\n⚙️  Configuration:")
     print(f"   LLM Enabled: {'✅' if use_llm else '❌'}")
     print(f"   Telegram: {'✅' if use_telegram else '❌ (Simulated Admin)'}")
+    print(f"   Evaluation Verbose: {'✅' if eval_verbose else '❌'}")
 
     if use_telegram:
         print("\nℹ️  Telegram mode: Run 'python scripts/stage2/run_telegram_bot.py' in another terminal")

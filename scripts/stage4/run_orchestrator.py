@@ -39,6 +39,7 @@ def main():
     # Get configuration from environment
     use_llm = os.getenv("USE_LLM", "false").lower() in ("true", "1", "yes")
     use_telegram = os.getenv("USE_TELEGRAM", "false").lower() in ("true", "1", "yes")
+    eval_verbose = os.getenv("EVAL_VERBOSE", "false").lower() in ("true", "1", "yes")
 
     # Validate configuration
     if use_llm and not os.getenv("OPENAI_API_KEY"):
@@ -56,6 +57,7 @@ def main():
     print(f"\n⚙️  Configuration:")
     print(f"   LLM Enabled: {'✅' if use_llm else '❌'}")
     print(f"   Telegram: {'✅' if use_telegram else '❌ (Simulated Admin)'}")
+    print(f"   Evaluation Verbose: {'✅' if eval_verbose else '❌'}")
     print()
     orchestrator = create_orchestrator(
         use_llm=use_llm,

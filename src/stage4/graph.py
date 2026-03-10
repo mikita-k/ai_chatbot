@@ -225,6 +225,8 @@ def build_orchestration_graph(
     def node_rag(state: WorkflowState) -> WorkflowState:
         """
         RAG Node: Answer information queries using Stage 2's RAG Chatbot (from Stage 1).
+
+        Can optionally include response quality evaluation if enabled.
         """
         state["state_history"].append("rag")
 
@@ -234,10 +236,36 @@ def build_orchestration_graph(
             # Get RAG response from Stage 2 (which uses Stage 1)
             answer = stage2_chatbot.answer_question(user_message)
 
+            # Optionally evaluate response quality (if evaluator available)
+            confidence = 0.8
+            evaluation_score = None
+
+            try:
+                if hasattr(stage2_chatbot, 'rag_chatbot') and hasattr(stage2_chatbot.rag_chatbot, 'evaluator'):
+                    if stage2_chatbot.rag_chatbot.evaluator:
+                        from src.stage1.response_evaluator import evaluate_response
+                        # Quick evaluation without LLM judge (too slow for real-time)
+                        evaluation = evaluate_response(
+                            query=user_message,
+                            response=answer,
+                            retrieved_hits=[],
+                            docs=[],
+                            latency=0.0,
+                            uses_llm=use_llm,
+                            ground_truth=None,
+                            use_judge=False  # Skip LLM judge for real-time performance
+                        )
+                        evaluation_score = evaluation.overall_score
+                        confidence = max(0.5, evaluation_score)
+            except Exception as e:
+                # Evaluation is optional - don't fail if it errors
+                pass
+
             state["rag_response"] = {
                 "answer": answer,
                 "sources": [],  # Could extract from rag_chatbot if available
-                "confidence": 0.8,
+                "confidence": confidence,
+                "evaluation_score": evaluation_score,
             }
 
             state["final_response"] = f"🤖 {answer}"

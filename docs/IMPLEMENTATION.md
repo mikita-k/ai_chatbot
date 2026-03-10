@@ -30,6 +30,12 @@
 - **No CLI flags**: Keeps code clean, configuration consistent
 - **Zero-config by default**: System works without any setup
 
+### 6. Response Quality Evaluation (EVAL_VERBOSE)
+- **Automatic detection**: RAG chatbot checks `EVAL_VERBOSE` environment variable
+- **Lazy initialization**: ResponseEvaluator only created when `EVAL_VERBOSE=true`
+- **Compact output**: Shows 4 essential lines (latency, faithfulness, relevance/completeness, overall score)
+- **Controlled verbosity**: `format_report()` returns empty string if `EVAL_VERBOSE=false`
+
 ---
 
 ## Development Notes

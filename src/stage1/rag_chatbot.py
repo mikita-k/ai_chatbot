@@ -2,7 +2,7 @@ import re
 import time
 import os
 import pickle
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 import faiss
 import numpy as np
@@ -50,7 +50,7 @@ class DocumentStore:
         # Create FAISS index (flat L2 index for exact search)
         dimension = embeddings.shape[1]
         self.index = faiss.IndexFlatL2(dimension)
-        self.index.add(embeddings)
+        self.index.add(embeddings.astype(np.float32))
 
         # Save index and docs
         os.makedirs(self.db_path, exist_ok=True)
@@ -91,12 +91,37 @@ def guard_rails(text: str) -> str:
 
 
 class SimpleRAGChatbot:
-    def __init__(self, store: DocumentStore, use_llm: bool = False, model: str | None = None, include_dynamic: bool = True):
+    def __init__(
+        self,
+        store: DocumentStore,
+        use_llm: bool = False,
+        model: str | None = None,
+        include_dynamic: bool = True,
+        include_evaluation: bool | None = None
+    ):
         self.store = store
         self.use_llm = use_llm
         self.include_dynamic = include_dynamic
+
+        # Auto-enable evaluation if EVAL_VERBOSE=true in .env
+        if include_evaluation is None:
+            include_evaluation = os.getenv("EVAL_VERBOSE", "false").lower() == "true"
+
+        self.include_evaluation = include_evaluation
         # allow override via parameter or env var
         self.model = model or os.getenv("OPENAI_MODEL")
+
+        # Initialize evaluator if needed
+        if self.include_evaluation:
+            try:
+                from src.stage1.response_evaluator import ResponseEvaluator
+                self.evaluator = ResponseEvaluator(use_llm_judge=True, model=self.model)
+            except ImportError:
+                print("Warning: response_evaluator not available, evaluation disabled")
+                self.include_evaluation = False
+                self.evaluator = None
+        else:
+            self.evaluator = None
 
     def _get_dynamic_context(self) -> str:
         """Get dynamic context from parking availability database."""
@@ -194,10 +219,34 @@ Today's Hours:
             # bubble up exceptions so caller can fallback
             raise
 
-    def answer(self, query: str, k: int = 3, use_llm: bool | None = None) -> str:
+    def answer(
+        self,
+        query: str,
+        k: int = 3,
+        use_llm: bool | None = None,
+        include_metrics: bool | None = None,
+        ground_truth: str | None = None
+    ) -> str:
+        """
+        Answer query and optionally include evaluation metrics.
+
+        Args:
+            query: User query
+            k: Number of documents to retrieve
+            use_llm: Whether to use LLM
+            include_metrics: Whether to include detailed metrics (requires evaluation enabled)
+            ground_truth: Expected answer for evaluation
+
+        Returns:
+            Answer text with optional metrics
+        """
         # allow per-call override; default to bot setting
         if use_llm is None:
             use_llm = self.use_llm
+
+        # Auto-detect metrics from EVAL_VERBOSE if not specified
+        if include_metrics is None:
+            include_metrics = os.getenv("EVAL_VERBOSE", "false").lower() == "true"
 
         start = time.time()
         hits = self.store.retrieve(query, k=k)
@@ -213,24 +262,134 @@ Today's Hours:
         if use_llm:
             try:
                 generated = self._call_openai(query, contexts)
-                return guard_rails(generated + f"\n\n(Retrieval latency: {elapsed:.3f}s, top={k})")
+                answer_text = generated
             except Exception as e:
                 # fallback to simple concatenation with a warning
                 fallback = "\n---\n".join(c for c in contexts)
-                return guard_rails(f"[LLM_ERROR: {e}]\n{fallback}\n\n(Retrieval latency: {elapsed:.3f}s, top={k})")
+                answer_text = f"[LLM_ERROR: {e}]\n{fallback}"
+        else:
+            pieces = [self.store.docs[i] + f"\n[similarity={score:.3f}]" for i, score in hits]
+            # simple "generation": concatenate retrieved passages as the answer base
+            answer_text = "\n---\n".join(pieces)
 
-        pieces = [self.store.docs[i] + f"\n[similarity={score:.3f}]" for i, score in hits]
-        # simple "generation": concatenate retrieved passages as the answer base
-        answer = "\n---\n".join(pieces)
+            # Add dynamic context to the answer
+            if self.include_dynamic:
+                dynamic_context = self._get_dynamic_context()
+                if dynamic_context:
+                    answer_text += f"\n---\n{dynamic_context}"
 
-        # Add dynamic context to the answer
+        # Apply guard rails
+        answer_text = guard_rails(answer_text)
+
+        # Evaluate if requested and evaluator is available
+        if include_metrics and self.include_evaluation and self.evaluator:
+            try:
+                from src.stage1.response_evaluator import evaluate_response
+                evaluation = evaluate_response(
+                    query=query,
+                    response=answer_text,
+                    retrieved_hits=hits,
+                    docs=self.store.docs,
+                    latency=elapsed,
+                    uses_llm=use_llm,
+                    ground_truth=ground_truth,
+                    use_judge=True
+                )
+                # Add detailed report if EVAL_VERBOSE=true
+                report = self.evaluator.format_report(evaluation)
+                if report:
+                    return f"{answer_text}\n\n{report}"
+
+                # Otherwise just inline metrics
+                metrics_text = self.evaluator.format_metrics_inline(evaluation)
+                return f"{answer_text}\n\n({metrics_text})"
+            except Exception as e:
+                print(f"Warning: Evaluation failed: {e}")
+                # Fallback to basic metrics
+                return f"{answer_text}\n\n(Retrieval latency: {elapsed:.3f}s, top={k})"
+
+        # Basic metrics only
+        meta = f"\n\n(Retrieval latency: {elapsed:.3f}s, top={k})"
+        return answer_text + meta
+
+    def answer_with_evaluation(
+        self,
+        query: str,
+        k: int = 3,
+        use_llm: bool | None = None,
+        ground_truth: str | None = None,
+        verbose: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Answer query and return detailed evaluation.
+
+        Args:
+            query: User query
+            k: Number of documents to retrieve
+            use_llm: Whether to use LLM for generation
+            ground_truth: Expected answer for comparison
+            verbose: Whether to print detailed report
+
+        Returns:
+            Dictionary with 'answer', 'evaluation', and 'report' keys
+        """
+        if not self.evaluator:
+            raise RuntimeError("Evaluation not enabled. Initialize with include_evaluation=True")
+
+        if use_llm is None:
+            use_llm = self.use_llm
+
+        # Retrieve documents
+        start = time.time()
+        hits = self.store.retrieve(query, k=k)
+        elapsed = time.time() - start
+        contexts = [self.store.docs[i] for i, _ in hits]
+
+        # Add dynamic context
         if self.include_dynamic:
             dynamic_context = self._get_dynamic_context()
             if dynamic_context:
-                answer += f"\n---\n{dynamic_context}"
+                contexts.append(dynamic_context)
 
-        meta = f"\n\n(Retrieval latency: {elapsed:.3f}s, top={k})"
-        return guard_rails(answer + meta)
+        # Generate answer
+        if use_llm:
+            try:
+                generated = self._call_openai(query, contexts)
+                answer_text = generated
+            except Exception as e:
+                fallback = "\n---\n".join(c for c in contexts)
+                answer_text = f"[LLM_ERROR: {e}]\n{fallback}"
+        else:
+            pieces = [self.store.docs[i] + f"\n[similarity={score:.3f}]" for i, score in hits]
+            answer_text = "\n---\n".join(pieces)
+
+            if self.include_dynamic:
+                dynamic_context = self._get_dynamic_context()
+                if dynamic_context:
+                    answer_text += f"\n---\n{dynamic_context}"
+
+        answer_text = guard_rails(answer_text)
+
+        # Evaluate
+        from src.stage1.response_evaluator import evaluate_response
+        evaluation = evaluate_response(
+            query=query,
+            response=answer_text,
+            retrieved_hits=hits,
+            docs=self.store.docs,
+            latency=elapsed,
+            uses_llm=use_llm,
+            ground_truth=ground_truth,
+            use_judge=True
+        )
+
+        report = self.evaluator.format_report(evaluation) if verbose else ""
+
+        return {
+            "answer": answer_text,
+            "evaluation": evaluation,
+            "report": report
+        }
 
 
 def collect_reservation_interactive() -> dict:
@@ -255,11 +414,12 @@ if __name__ == "__main__":
     import json
 
     parser = argparse.ArgumentParser(description="RAG chatbot with FAISS vector DB (Stage 1)")
-    parser.add_argument("command", choices=["chat", "qa", "eval"], help="mode")
+    parser.add_argument("command", choices=["chat", "qa", "eval", "eval-quality"], help="mode")
     parser.add_argument("-q", "--query", help="single query for qa mode")
     parser.add_argument("--use-llm", action="store_true", help="Use OpenAI LLM for answer generation (requires OPENAI_API_KEY)")
     parser.add_argument("--db-path", default="./faiss_db", help="Path to FAISS database (default: ./faiss_db)")
     parser.add_argument("--no-dynamic", action="store_true", help="Disable dynamic data (availability, pricing)")
+    parser.add_argument("--with-metrics", action="store_true", help="Include detailed metrics in answer (for qa mode)")
     args = parser.parse_args()
 
     # Initialize dynamic database on startup
@@ -270,7 +430,15 @@ if __name__ == "__main__":
         print(f"Warning: Could not initialize dynamic database: {e}")
 
     store = DocumentStore.from_file("data/static_docs.txt", db_path=args.db_path)
-    bot = SimpleRAGChatbot(store, use_llm=args.use_llm, include_dynamic=not args.no_dynamic)
+
+    # For eval-quality command, enable evaluation
+    include_evaluation = args.command == "eval-quality"
+    bot = SimpleRAGChatbot(
+        store,
+        use_llm=args.use_llm,
+        include_dynamic=not args.no_dynamic,
+        include_evaluation=include_evaluation
+    )
 
     # show LLM/key status for clarity (do not print the key value)
     if args.use_llm:
@@ -285,11 +453,15 @@ if __name__ == "__main__":
             q = input("You: ")
             if q.strip().lower() in ("exit", "quit"):
                 break
-            print(bot.answer(q))
+            answer = bot.answer(q, include_metrics=args.with_metrics)
+            print(answer)
+
     elif args.command == "qa":
         if not args.query:
             raise SystemExit("--query required for qa mode")
-        print(bot.answer(args.query, use_llm=args.use_llm))
+        answer = bot.answer(args.query, include_metrics=args.with_metrics, use_llm=args.use_llm)
+        print(answer)
+
     elif args.command == "eval":
         # evaluation example: test retrieval quality on known queries
         tests = [
@@ -303,3 +475,46 @@ if __name__ == "__main__":
             found = any(i == expected_idx for i, _ in hits)
             results.append({"query": q, "expected_doc_idx": expected_idx, "found": found})
         print(json.dumps(results, indent=2))
+
+    elif args.command == "eval-quality":
+        # Comprehensive quality evaluation with LLM judge
+        print("Quality Evaluation Mode")
+        print("Enter queries to evaluate (type 'exit' to quit)")
+
+        test_queries = [
+            ("What are the working hours?", "The parking facility is open 24/7"),
+            ("How much does it cost?", "Hourly rate is $2 per hour with a daily maximum of $20"),
+            ("Where is the parking located?", "Located at 123 Main Street"),
+        ]
+
+        results = []
+        for query, ground_truth in test_queries:
+            print(f"\n--- Evaluating: {query} ---")
+            result = bot.answer_with_evaluation(
+                query,
+                use_llm=args.use_llm,
+                ground_truth=ground_truth,
+                verbose=True
+            )
+            results.append(result["evaluation"])
+            print(result["report"])
+
+        # Summary statistics
+        print("\n" + "="*80)
+        print("SUMMARY STATISTICS")
+        print("="*80)
+
+        if results and results[0].llm_judge_result:
+            avg_relevance = sum(r.llm_judge_result.relevance_score for r in results) / len(results)
+            avg_faithfulness = sum(r.llm_judge_result.faithfulness_score for r in results) / len(results)
+            avg_completeness = sum(r.llm_judge_result.completeness_score for r in results) / len(results)
+            avg_conciseness = sum(r.llm_judge_result.conciseness_score for r in results) / len(results)
+            avg_overall = sum(r.overall_score for r in results) / len(results)
+
+            print(f"Average Relevance: {avg_relevance:.3f}")
+            print(f"Average Faithfulness: {avg_faithfulness:.3f}")
+            print(f"Average Completeness: {avg_completeness:.3f}")
+            print(f"Average Conciseness: {avg_conciseness:.3f}")
+            print(f"Average Overall Score: {avg_overall:.3f}")
+            print(f"\nQuality Level: {bot.evaluator._score_to_level(avg_overall)}")
+

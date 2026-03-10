@@ -24,6 +24,26 @@ scripts/
 
 ## Stage 1: RAG Chatbot
 
+### CLI Commands
+
+Interactive use of RAG chatbot via command line:
+
+```bash
+# Interactive chat mode
+python -m src.stage1.rag_chatbot chat
+
+# Single query (QA mode)
+python -m src.stage1.rag_chatbot qa --query "pricing information"
+
+# Retrieval accuracy evaluation
+python -m src.stage1.rag_chatbot eval
+```
+
+**Configuration (set in `.env`):**
+- `USE_LLM=true` - Use OpenAI for answer generation
+- `EVAL_VERBOSE=true` - Show detailed quality evaluation metrics
+- `EVAL_VERBOSE=false` - Show only basic latency (default)
+
 ### `run_chatbot.py`
 Interactive chat with the RAG chatbot (no admin approval).
 
