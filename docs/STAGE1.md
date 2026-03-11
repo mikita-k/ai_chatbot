@@ -29,6 +29,7 @@ See [docs/SCRIPTS.md](SCRIPTS.md) (Stage 1 block) for detailed usage instruction
   - **Local Mode**: Fast retrieval-based answers (no API key needed)
   - **LLM Mode**: AI-generated answers using OpenAI (requires API key)
 - **Performance Tracking**: Shows retrieval latency for each query
+- **Response Quality Evaluation**: LLM Judge evaluates answer relevance, faithfulness, completeness, and conciseness (via `EVAL_VERBOSE` parameter)
 
 ## Usage Examples
 
@@ -96,6 +97,42 @@ python -m src.stage1.rag_chatbot eval
 ```
 Tests retrieval quality on predefined sample queries.
 
+### Response Quality Evaluation (EVAL_VERBOSE)
+
+Monitor answer quality with LLM Judge evaluation:
+
+```powershell
+# In .env file:
+EVAL_VERBOSE=true   # Show detailed quality metrics
+EVAL_VERBOSE=false  # Only show basic latency metrics (default)
+```
+
+**With `EVAL_VERBOSE=false` (default):**
+```
+(Retrieval latency: 0.027s, top=3)
+```
+
+**With `EVAL_VERBOSE=true`:**
+```
+⏱️ Latency: retrieval=0.027s | docs=3 | similarity=0.85
+🎯 Faithfulness: 0.88/1.00 (hallucinations: none)
+📋 Relevance: 0.92 | Completeness: 0.85
+✅ Overall: 0.88/1.00 - Very Good ⭐⭐
+```
+Faithfulness: 0.88/1.00
+Completeness: 0.85/1.00
+Conciseness: 0.82/1.00
+Overall Score: 0.88/1.00
+...
+```
+
+**Quality Levels:**
+- 0.90-1.00: Excellent ⭐⭐⭐
+- 0.80-0.89: Very Good ⭐⭐
+- 0.70-0.79: Good ⭐
+- 0.50-0.69: Fair ⚠️
+- <0.50: Poor ❌
+
 ## Architecture
 
 **Data Flow:**
@@ -130,6 +167,7 @@ For testing information, see [../readme.md](../readme.md) (Testing section).
 | File | Purpose |
 |------|---------|
 | `src/stage1/rag_chatbot.py` | Main chatbot implementation |
+| `src/stage1/response_evaluator.py` | Response quality evaluation (LLM Judge) |
 | `data/static_docs.txt` | Static parking information |
 | `data/dynamic/db.py` | Dynamic data management (availability, pricing) |
 | `tests/test_stage1.py` | Unit tests |
@@ -181,4 +219,5 @@ This is Stage 1 of a multi-stage project:
 ## Related Documentation
 
 - [IMPLEMENTATION.md](IMPLEMENTATION.md) - Design Decisions
+- [EVAL_VERBOSE.md](EVAL_VERBOSE.md) - Response Quality Evaluation Parameters
 - [../readme.md](../readme.md) - Main Project README

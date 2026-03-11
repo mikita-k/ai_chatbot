@@ -29,8 +29,21 @@ You: exit
   - Static (FAISS) + dynamic (SQLite) data
   - Guard rails (email/number redaction)
   - Optional OpenAI LLM
+  - **Response quality evaluation** with `EVAL_VERBOSE` parameter
 - **Tests**: ✅
 - **Details**: See [docs/STAGE1.md](docs/STAGE1.md)
+
+**Response Quality Metrics (controlled by `EVAL_VERBOSE` in `.env`):**
+- `EVAL_VERBOSE=false` (default): Basic latency metrics only
+- `EVAL_VERBOSE=true`: Detailed LLM Judge evaluation (relevance, faithfulness, completeness, conciseness)
+
+Example with `EVAL_VERBOSE=true`:
+```
+⏱️ Latency: retrieval=0.027s | docs=3 | similarity=0.85
+🎯 Faithfulness: 0.88/1.00 (hallucinations: none)
+📋 Relevance: 0.92 | Completeness: 0.85
+✅ Overall: 0.88/1.00 - Very Good ⭐⭐
+```
 
 ### Stage 2: Admin Approval ✅
 - **What**: Human-in-the-loop approval workflow
@@ -80,6 +93,17 @@ python scripts/stage4/run_orchestrator.py
 ```
 
 For all available scripts, see [docs/SCRIPTS.md](docs/SCRIPTS.md)
+
+---
+
+## 🎯 Response Quality Evaluation
+
+Response evaluation system with LLM judge. See [EVAL_README.md](EVAL_README.md) for details.
+
+```bash
+pytest tests/test_response_evaluation.py -v  # 22 tests ✅
+python scripts/stage1/example_evaluation.py   # 5 examples
+```
 
 ---
 
